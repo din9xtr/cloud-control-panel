@@ -5,10 +5,10 @@
 <br />
 <br />
 
-<img src="https://img.shields.io/badge/Go-161B22?style=for-the-badge&logo=go&logoColor=A6ADB8" alt="Go" />
-<img src="https://img.shields.io/badge/React-161B22?style=for-the-badge&logo=react&logoColor=A6ADB8" alt="React" />
-<img src="https://img.shields.io/badge/SQLite-161B22?style=for-the-badge&logo=sqlite&logoColor=A6ADB8" alt="SQLite" />
-<img src="https://img.shields.io/badge/Docker-161B22?style=for-the-badge&logo=docker&logoColor=A6ADB8" alt="Docker" />
+<img src="https://img.shields.io/badge/Go-12161C?style=for-the-badge&logo=go&logoColor=A2ABB7" alt="Go" />
+<img src="https://img.shields.io/badge/React-12161C?style=for-the-badge&logo=react&logoColor=A2ABB7" alt="React" />
+<img src="https://img.shields.io/badge/SQLite-12161C?style=for-the-badge&logo=sqlite&logoColor=A2ABB7" alt="SQLite" />
+<img src="https://img.shields.io/badge/Docker-12161C?style=for-the-badge&logo=docker&logoColor=A2ABB7" alt="Docker" />
 
 <br />
 <br />
