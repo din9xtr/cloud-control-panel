@@ -80,7 +80,7 @@ func (m *memoryStore) ReservedBytes(_ context.Context, userID int64) (int64, err
 	defer m.mu.Unlock()
 	var total int64
 	for _, u := range m.uploads {
-		if u.UserID == userID && !u.Done() {
+		if u.UserID == userID && !u.Done() && !u.ExistingOnly {
 			total += u.Size
 		}
 	}
@@ -458,5 +458,144 @@ func TestFailedStagingWriteKeepsAcknowledgedOffset(t *testing.T) {
 	e.svc.staging = staging
 	if _, err := e.svc.Write(ctx, 1, u.ID, 0, strings.NewReader("abcd")); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestFolderRetryComparesAllBytesWithoutAdditionalQuota(t *testing.T) {
+	e := newEnv(t, 4)
+	ctx := context.Background()
+	original, err := e.svc.Create(ctx, 1, CreateInput{Size: 4, Name: "notes.txt"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.svc.Write(ctx, 1, original.ID, 0, strings.NewReader("abcd")); err != nil {
+		t.Fatal(err)
+	}
+	for _, payload := range []string{"abcd", "abce"} {
+		retry, err := e.svc.Create(ctx, 1, CreateInput{Size: 4, Name: "notes.txt", SkipIdentical: true})
+		if err != nil || !retry.ExistingOnly {
+			t.Fatalf("retry admission at full quota: %+v, %v", retry, err)
+		}
+		if reserved, err := e.svc.Reserved(ctx, 1); err != nil || reserved != 0 {
+			t.Fatalf("duplicate quota reservation: %d, %v", reserved, err)
+		}
+		_, err = e.svc.Write(ctx, 1, retry.ID, 0, strings.NewReader(payload))
+		if payload == "abcd" && err != nil {
+			t.Fatal(err)
+		}
+		if payload == "abce" && !errors.Is(err, files.ErrExists) {
+			t.Fatalf("equal-size conflict = %v", err)
+		}
+	}
+	entries, err := os.ReadDir(filepath.Join(e.dir, "users", "1"))
+	if err != nil || len(entries) != 1 {
+		t.Fatalf("created duplicates: %v, %v", entries, err)
+	}
+	data, err := os.ReadFile(filepath.Join(e.dir, "users", "1", "notes.txt"))
+	if err != nil || string(data) != "abcd" {
+		t.Fatalf("existing content changed: %q, %v", data, err)
+	}
+	if _, err := e.svc.Create(ctx, 1, CreateInput{Size: 3, Name: "notes.txt", SkipIdentical: true}); !errors.Is(err, files.ErrExists) {
+		t.Fatalf("different-size conflict = %v", err)
+	}
+}
+
+func TestRetryCannotSpendQuotaCreditAfterOriginalDisappears(t *testing.T) {
+	e := newEnv(t, 4)
+	ctx := context.Background()
+	u, err := e.svc.Create(ctx, 1, CreateInput{Size: 4, Name: "notes.txt"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.svc.Write(ctx, 1, u.ID, 0, strings.NewReader("abcd")); err != nil {
+		t.Fatal(err)
+	}
+	retry, err := e.svc.Create(ctx, 1, CreateInput{Size: 4, Name: "notes.txt", SkipIdentical: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(filepath.Join(e.dir, "users", "1", "notes.txt")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.svc.Write(ctx, 1, retry.ID, 0, strings.NewReader("abcd")); !errors.Is(err, files.ErrNotFound) {
+		t.Fatalf("recreated a file without a quota reservation: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(e.dir, "users", "1", "notes.txt")); !os.IsNotExist(err) {
+		t.Fatal("retry recreated deleted original")
+	}
+}
+
+func TestConcurrentFolderUploadsPublishOneFile(t *testing.T) {
+	e := newEnv(t, 0)
+	ctx := context.Background()
+	var uploads []Upload
+	for range 8 {
+		u, err := e.svc.Create(ctx, 1, CreateInput{Size: 4, Name: "notes.txt", SkipIdentical: true})
+		if err != nil {
+			t.Fatal(err)
+		}
+		uploads = append(uploads, u)
+	}
+	results := make(chan error, len(uploads))
+	var wg sync.WaitGroup
+	for _, u := range uploads {
+		wg.Go(func() { _, err := e.svc.Write(ctx, 1, u.ID, 0, strings.NewReader("abcd")); results <- err })
+	}
+	wg.Wait()
+	close(results)
+	for err := range results {
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	entries, err := os.ReadDir(filepath.Join(e.dir, "users", "1"))
+	if err != nil || len(entries) != 1 {
+		t.Fatalf("concurrent duplicates: %v, %v", entries, err)
+	}
+}
+
+func TestFolderRetryKeepsOneEmptyFile(t *testing.T) {
+	e := newEnv(t, 0)
+	for range 3 {
+		u, err := e.svc.Create(context.Background(), 1, CreateInput{Name: "empty.txt", SkipIdentical: true})
+		if err != nil || !u.Done() {
+			t.Fatalf("empty retry: %+v, %v", u, err)
+		}
+	}
+	entries, err := os.ReadDir(filepath.Join(e.dir, "users", "1"))
+	if err != nil || len(entries) != 1 {
+		t.Fatalf("empty duplicates: %v, %v", entries, err)
+	}
+}
+
+func TestConcurrentAdmissionAndPublicationStayWithinQuota(t *testing.T) {
+	e := newEnv(t, 60)
+	results := make(chan error, 40)
+	var wg sync.WaitGroup
+	for i := range 40 {
+		wg.Go(func() {
+			u, err := e.svc.Create(context.Background(), 1, CreateInput{Size: 6, Name: "notes-" + strconv.Itoa(i) + ".txt"})
+			if err == nil {
+				_, err = e.svc.Write(context.Background(), 1, u.ID, 0, strings.NewReader("abcdef"))
+			}
+			results <- err
+		})
+	}
+	wg.Wait()
+	close(results)
+	accepted := 0
+	for err := range results {
+		if err == nil {
+			accepted++
+		} else if !errors.Is(err, files.ErrQuotaExceeded) {
+			t.Fatal(err)
+		}
+	}
+	if accepted == 0 || accepted > 10 {
+		t.Fatalf("accepted uploads = %d", accepted)
+	}
+	entries, err := os.ReadDir(filepath.Join(e.dir, "users", "1"))
+	if err != nil || len(entries) != accepted {
+		t.Fatalf("quota publication mismatch: %v, %v", entries, err)
 	}
 }

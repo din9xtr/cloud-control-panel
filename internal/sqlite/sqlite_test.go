@@ -87,6 +87,7 @@ INSERT INTO schema_migrations VALUES (1, 1), (2, 1);
 INSERT INTO users (id, username, password, created_at, password_changed_at) VALUES (1, 'gardener', 'hash', 1, 1);
 INSERT INTO share_links (id, user_id, path, token, created_at, expires_at, downloads) VALUES ('link', 1, 'garden/seeds.txt', 'token', 1, 9999999999, 3);
 INSERT INTO uploads (id, user_id, size, received, dir, name, created_at, expires_at) VALUES ('upload', 1, 10, 4, 'garden', 'catalog.txt', 1, 9999999999);
+INSERT INTO uploads (id, user_id, size, received, dir, name, created_at, expires_at) VALUES ('ambiguous', 1, 10, 10, 'garden', 'notes.txt', 1, 9999999999);
 `
 	db := openTest(t, seed)
 	ctx := context.Background()
@@ -103,6 +104,10 @@ INSERT INTO uploads (id, user_id, size, received, dir, name, created_at, expires
 	}
 	if u.ShareID != "" || u.Offset != 4 {
 		t.Fatalf("migrated upload = %+v", u)
+	}
+	ambiguous, err := NewUploads(db).Upload(ctx, 1, "ambiguous")
+	if err != nil || ambiguous.Offset != 0 || ambiguous.Ready {
+		t.Fatalf("unvalidated legacy completion: %+v, %v", ambiguous, err)
 	}
 }
 

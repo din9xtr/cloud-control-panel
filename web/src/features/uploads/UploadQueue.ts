@@ -23,9 +23,9 @@ export type UploadHandle = {
   cancel: () => void;
 };
 
-export type UploadFactory = (file: File, folder: string, callbacks: UploadCallbacks) => UploadHandle;
+export type UploadFactory = (file: File, folder: string, callbacks: UploadCallbacks, skipIdentical?: boolean) => UploadHandle;
 
-type Entry = { item: UploadItem; file: File; handle?: UploadHandle; lastSample?: { at: number; bytes: number } };
+type Entry = { skipIdentical: boolean; item: UploadItem; file: File; handle?: UploadHandle; lastSample?: { at: number; bytes: number } };
 
 const speedSmoothing = 0.3;
 
@@ -49,11 +49,12 @@ export class UploadQueue {
 
   getSnapshot = (): UploadItem[] => this.snapshot;
 
-  add(files: Iterable<File>, folder: string): void {
+  add(files: Iterable<File>, folder: string, skipIdentical = false): void {
     for (const file of files) {
       const id = `u${++this.sequence}`;
       this.entries.set(id, {
         file,
+        skipIdentical,
         item: { id, name: file.name, folder, size: file.size, uploaded: 0, speed: 0, status: "queued" },
       });
     }
@@ -123,7 +124,7 @@ export class UploadQueue {
         this.update(entry, { status: "error", error: message, speed: 0 });
         this.pump();
       },
-    });
+    }, entry.skipIdentical);
     entry.handle.start();
   }
 

@@ -33,7 +33,7 @@ x-client-operations:
       $ref: '#/components/schemas/UploadFileArguments'
   - operationId: uploadFolder
     method: POST
-    description: Upload a local directory recursively, including empty folders. Existing remote directories are merged and duplicate filenames get a suffix. Partial uploads remain on failure; repeating the command can create duplicate files. Symlinks are skipped.
+    description: Upload a local directory recursively, including empty folders. Existing remote directories are merged. Files with the same name and identical bytes are reused; different content produces a conflict without overwriting or creating a suffixed copy. Partial uploads remain on failure and repeating the command safely checks completed files again. Symlinks are skipped.
     inputSchema:
       $ref: '#/components/schemas/UploadFolderArguments'
 paths:
@@ -556,7 +556,7 @@ paths:
         - name: Upload-Metadata
           in: header
           required: true
-          description: 'tus metadata: filename (required), folder (optional, defaults to root).'
+          description: 'tus metadata: filename (required), folder (optional, defaults to root), conflict (optional, rename or skip-identical; defaults to rename). skip-identical compares all bytes at the exact destination and returns 409 for different content; it never overwrites. Existing files require temporary disk space but no additional logical quota.'
           schema:
             type: string
       responses:
@@ -574,6 +574,8 @@ paths:
         '400':
           $ref: '#/components/responses/Error'
         '401':
+          $ref: '#/components/responses/Error'
+        '409':
           $ref: '#/components/responses/Error'
         '404':
           $ref: '#/components/responses/Error'
@@ -780,7 +782,7 @@ paths:
         - name: Upload-Metadata
           in: header
           required: true
-          description: 'tus metadata: filename (required), folder (optional, defaults to root).'
+          description: 'tus metadata: filename (required), folder (optional, defaults to root), conflict (optional, rename or skip-identical; defaults to rename). skip-identical compares all bytes at the exact destination and returns 409 for different content; it never overwrites. Existing files require temporary disk space but no additional logical quota.'
           schema:
             type: string
       responses:
@@ -997,6 +999,10 @@ components:
           description: Remote filename; defaults to the local basename.
         token:
           $ref: '#/components/schemas/UploadLinkToken'
+        conflict:
+          type: string
+          enum: [rename, skip-identical]
+          description: Same-name policy. skip-identical reuses equal content and rejects different content. Authenticated uploads only.
         uploadId:
           type: string
           pattern: '^[A-Za-z0-9_-]{1,128}$'

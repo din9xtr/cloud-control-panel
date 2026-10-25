@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import type { UploadOptions } from "tus-js-client";
+import { DetailedError, type UploadOptions } from "tus-js-client";
 import { createTusFactory } from "./tusFactory";
 
 const mocks = vi.hoisted(() => ({
@@ -42,4 +42,32 @@ describe("tus upload factory", () => {
     handle.start();
     expect(upload?.start).toHaveBeenCalledOnce();
   });
+  it("keeps folder retries separate from older rename-mode sessions", async () => {
+    const old = { metadata: { folder: "garden", filename: "seeds.txt" }, uploadUrl: "/api/v1/uploads/old" };
+    const safe = { metadata: { folder: "garden", filename: "seeds.txt", conflict: "skip-identical" }, uploadUrl: "/api/v1/uploads/safe" };
+    mocks.previous = [safe, old];
+    const handle = createTusFactory("/api/v1/uploads")(new File(["seeds"], "seeds.txt"), "garden", callbacks(), true);
+    handle.start();
+    await Promise.resolve();
+    const upload = mocks.uploads.at(-1);
+    expect(upload?.options.metadata?.conflict).toBe("skip-identical");
+    expect(upload?.resumeFromPreviousUpload).toHaveBeenCalledWith(safe);
+    mocks.previous = [];
+  });
+
+  it("retries offset races but reports content conflicts without retrying", () => {
+    createTusFactory("/api/v1/uploads")(new File(["seeds"], "seeds.txt"), "garden", callbacks(), true);
+    const retry = mocks.uploads.at(-1)?.options.onShouldRetry;
+    const error = Object.assign(Object.create(DetailedError.prototype) as DetailedError, {
+      originalRequest: { getMethod: (): string => "PATCH" },
+      originalResponse: { getStatus: () => 409, getBody: () => JSON.stringify({ error: { message: "already exists" } }) },
+    });
+    expect(retry?.(error, 0, {})).toBe(false);
+    error.originalResponse.getBody = () => JSON.stringify({ error: { message: "upload offset mismatch" } });
+    expect(retry?.(error, 0, {})).toBe(true);
+    error.originalRequest.getMethod = () => "HEAD";
+    error.originalResponse.getBody = () => "";
+    expect(retry?.(error, 0, {})).toBe(false);
+  });
+
 });

@@ -48,7 +48,7 @@ All arguments are named CLI flags or flat MCP arguments.
 | `tusTerminate` | — | `id` | — | `DELETE /uploads/{id}` |
 | `tusWrite` | — | `Upload-Offset`, `data`, `id` | — | `PATCH /uploads/{id}` |
 | `updateSettings` | — | `defaultLinkTtlSeconds`, `quotaBytes`, `trashRetentionDays` | — | `PUT /settings` |
-| `uploadFile` | upload | `input` | `folder`, `name`, `token`, `uploadId` | Local transfer helper |
+| `uploadFile` | upload | `input` | `conflict`, `folder`, `name`, `token`, `uploadId` | Local transfer helper |
 | `uploadFolder` | — | `input` | `folder`, `name` | Local transfer helper |
 
 Use `cloud cli help COMMAND` for its complete JSON Schema, `cloud cli COMMAND --help` for flags,

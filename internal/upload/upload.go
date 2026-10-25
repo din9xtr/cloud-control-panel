@@ -31,17 +31,19 @@ var (
 )
 
 type Upload struct {
-	ShareID   string
-	ID        string
-	UserID    int64
-	Size      int64
-	Offset    int64
-	Dir       files.Path
-	Name      string
-	CreatedAt time.Time
-	ExpiresAt time.Time
-	Result    files.Path
-	Ready     bool
+	ShareID       string
+	ID            string
+	UserID        int64
+	Size          int64
+	Offset        int64
+	Dir           files.Path
+	Name          string
+	CreatedAt     time.Time
+	ExpiresAt     time.Time
+	Result        files.Path
+	Ready         bool
+	SkipIdentical bool
+	ExistingOnly  bool
 }
 
 func (u Upload) Done() bool {
@@ -69,6 +71,7 @@ type Staging interface {
 type Library interface {
 	RequireFolder(ctx context.Context, userID int64, dir files.Path) error
 	EnsureCapacity(ctx context.Context, userID, need, reserved int64) error
+	CheckExistingUpload(ctx context.Context, userID int64, dir files.Path, name string, size, reserved int64) (bool, error)
 	Publish(ctx context.Context, userID int64, stagingID string, in files.Publication) (files.Path, error)
 }
 
@@ -104,10 +107,11 @@ func NewService(cfg Config) *Service {
 }
 
 type CreateInput struct {
-	ShareID string
-	Size    int64
-	Dir     files.Path
-	Name    string
+	SkipIdentical bool
+	ShareID       string
+	Size          int64
+	Dir           files.Path
+	Name          string
 }
 
 func (s *Service) Create(ctx context.Context, userID int64, in CreateInput) (Upload, error) {
@@ -134,8 +138,17 @@ func (s *Service) Create(ctx context.Context, userID int64, in CreateInput) (Upl
 	if err != nil {
 		return Upload{}, fmt.Errorf("reserved bytes: %w", err)
 	}
-	if err := s.library.EnsureCapacity(ctx, userID, in.Size, reserved); err != nil {
-		return Upload{}, err
+	existingOnly := false
+	if in.SkipIdentical {
+		existingOnly, err = s.library.CheckExistingUpload(ctx, userID, in.Dir, in.Name, in.Size, reserved)
+		if err != nil {
+			return Upload{}, err
+		}
+	}
+	if !existingOnly {
+		if err := s.library.EnsureCapacity(ctx, userID, in.Size, reserved); err != nil {
+			return Upload{}, err
+		}
 	}
 	id, err := newID()
 	if err != nil {
@@ -149,7 +162,7 @@ func (s *Service) Create(ctx context.Context, userID int64, in CreateInput) (Upl
 		return Upload{}, errors.Join(fmt.Errorf("close staging: %w", err), s.staging.RemoveStaging(userID, id))
 	}
 	now := s.clock().UTC()
-	u := Upload{ID: id, UserID: userID, Size: in.Size, Dir: in.Dir, Name: in.Name, CreatedAt: now, ExpiresAt: now.Add(s.ttl), ShareID: in.ShareID}
+	u := Upload{ID: id, UserID: userID, Size: in.Size, Dir: in.Dir, Name: in.Name, CreatedAt: now, ExpiresAt: now.Add(s.ttl), ShareID: in.ShareID, SkipIdentical: in.SkipIdentical, ExistingOnly: existingOnly}
 	if err := s.store.CreateUpload(ctx, u); err != nil {
 		return Upload{}, errors.Join(fmt.Errorf("store upload: %w", err), s.staging.RemoveStaging(userID, id))
 	}
@@ -158,7 +171,7 @@ func (s *Service) Create(ctx context.Context, userID int64, in CreateInput) (Upl
 			return u, err
 		}
 		u.Ready = true
-		return s.publishLocked(ctx, u)
+		return s.publish(ctx, u)
 	}
 	return u, nil
 }
@@ -180,6 +193,12 @@ func (s *Service) Status(ctx context.Context, userID int64, id string) (Upload, 
 	if err != nil {
 		return Upload{}, err
 	}
+	if u.Size == 0 && !u.Ready {
+		if err := s.store.ReadyUpload(ctx, u.ID, u.ExpiresAt); err != nil {
+			return u, err
+		}
+		u.Ready = true
+	}
 	if u.Ready && !u.Done() {
 		return s.publish(ctx, u)
 	}
@@ -199,11 +218,14 @@ func (s *Service) Write(ctx context.Context, userID int64, id string, offset int
 	if offset != u.Offset {
 		return u, ErrOffsetMismatch
 	}
-	if u.Done() {
+	if u.Done() || u.Ready {
+		if err := endOfBody(body); err != nil {
+			return u, err
+		}
+		if u.Ready && !u.Done() {
+			return s.publish(ctx, u)
+		}
 		return u, nil
-	}
-	if u.Ready {
-		return s.publish(ctx, u)
 	}
 	written, copyErr := s.append(u, body)
 	u.ExpiresAt = s.clock().UTC().Add(s.ttl)
@@ -284,15 +306,7 @@ func (s *Service) append(u Upload, body io.Reader) (int64, error) {
 	remaining := u.Size - u.Offset
 	written, copyErr := io.CopyBuffer(io.NewOffsetWriter(f, u.Offset), io.LimitReader(body, remaining), *buf)
 	if copyErr == nil && written == remaining {
-		n, err := body.Read((*buf)[:1])
-		switch {
-		case n > 0:
-			copyErr = ErrTooLarge
-		case err != nil && !errors.Is(err, io.EOF):
-			copyErr = err
-		case err == nil:
-			copyErr = io.ErrNoProgress
-		}
+		copyErr = endOfBody(body)
 	}
 	if copyErr != nil && written == remaining {
 		written = 0
@@ -308,18 +322,31 @@ func (s *Service) append(u Upload, body io.Reader) (int64, error) {
 	return written, copyErr
 }
 
-func (s *Service) publish(ctx context.Context, u Upload) (Upload, error) {
-	s.createMu.Lock()
-	defer s.createMu.Unlock()
-	return s.publishLocked(ctx, u)
+func endOfBody(body io.Reader) error {
+	var extra [1]byte
+	n, err := body.Read(extra[:])
+	switch {
+	case n > 0:
+		return ErrTooLarge
+	case errors.Is(err, io.EOF):
+		return nil
+	case err != nil:
+		return err
+	default:
+		return io.ErrNoProgress
+	}
 }
 
-func (s *Service) publishLocked(ctx context.Context, u Upload) (Upload, error) {
+func (s *Service) publish(ctx context.Context, u Upload) (Upload, error) {
 	reserved, err := s.store.ReservedBytes(ctx, u.UserID)
 	if err != nil {
 		return u, fmt.Errorf("reserved bytes: %w", err)
 	}
-	result, err := s.library.Publish(ctx, u.UserID, u.ID, files.Publication{Dir: u.Dir, Name: u.Name, Size: u.Size, Reserved: max(0, reserved-u.Size)})
+	ownReservation := u.Size
+	if u.ExistingOnly {
+		ownReservation = 0
+	}
+	result, err := s.library.Publish(ctx, u.UserID, u.ID, files.Publication{Dir: u.Dir, Name: u.Name, Size: u.Size, Reserved: max(0, reserved-ownReservation), SkipIdentical: u.SkipIdentical, ExistingOnly: u.ExistingOnly})
 	if err != nil {
 		return u, fmt.Errorf("publish upload: %w", err)
 	}

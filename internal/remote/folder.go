@@ -83,7 +83,7 @@ func (e *Executor) uploadFolder(ctx context.Context, args map[string]any) (Resul
 		if err != nil {
 			return errors.New("read source file inside folder")
 		}
-		result, uploadErr := e.Client.Upload(ctx, file, map[string]any{"folder": path.Dir(target), "name": entry.Name()}, e.Progress)
+		result, uploadErr := e.Client.Upload(ctx, file, map[string]any{"folder": path.Dir(target), "name": entry.Name(), "conflict": "skip-identical"}, e.Progress)
 		closeErr := file.Close()
 		if err := errors.Join(uploadErr, closeErr); err != nil {
 			return err

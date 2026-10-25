@@ -55,8 +55,16 @@ func (s *server) tusCreate(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, r, err)
 		return
 	}
+	if policy := meta["conflict"]; policy != "" && policy != "rename" && policy != "skip-identical" {
+		s.fail(w, r, badRequest("conflict must be rename or skip-identical"))
+		return
+	}
 	var shareID string
 	if link, ok := r.Context().Value(uploadLinkKey{}).(share.Link); ok {
+		if meta["conflict"] == "skip-identical" {
+			s.fail(w, r, badRequest("upload links do not support skip-identical"))
+			return
+		}
 		if !dir.IsRoot() || size > share.MaxUploadSize {
 			s.fail(w, r, badRequest("upload links accept files up to 5 GiB in the destination folder only"))
 			return
@@ -64,10 +72,11 @@ func (s *server) tusCreate(w http.ResponseWriter, r *http.Request) {
 		dir, shareID = link.Path, link.ID
 	}
 	u, err := s.uploads.Create(r.Context(), principalFrom(r.Context()).UserID, upload.CreateInput{
-		ShareID: shareID,
-		Size:    size,
-		Dir:     dir,
-		Name:    meta["filename"],
+		ShareID:       shareID,
+		SkipIdentical: meta["conflict"] == "skip-identical",
+		Size:          size,
+		Dir:           dir,
+		Name:          meta["filename"],
 	})
 	if err != nil {
 		s.fail(w, r, err)

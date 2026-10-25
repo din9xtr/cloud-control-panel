@@ -203,11 +203,11 @@ func NewUploads(db *sql.DB) *Uploads {
 	return &Uploads{db: db}
 }
 
-const uploadColumns = `id, user_id, size, received, dir, name, created_at, expires_at, share_id, ready, result`
+const uploadColumns = `id, user_id, size, received, dir, name, created_at, expires_at, share_id, ready, result, skip_identical, existing_only`
 
 func (s *Uploads) CreateUpload(ctx context.Context, u upload.Upload) error {
-	_, err := s.db.ExecContext(ctx, `INSERT INTO uploads (`+uploadColumns+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		u.ID, u.UserID, u.Size, u.Offset, u.Dir.String(), u.Name, unix(u.CreatedAt), unix(u.ExpiresAt), u.ShareID, u.Ready, u.Result.String())
+	_, err := s.db.ExecContext(ctx, `INSERT INTO uploads (`+uploadColumns+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		u.ID, u.UserID, u.Size, u.Offset, u.Dir.String(), u.Name, unix(u.CreatedAt), unix(u.ExpiresAt), u.ShareID, u.Ready, u.Result.String(), u.SkipIdentical, u.ExistingOnly)
 	return err
 }
 
@@ -253,7 +253,7 @@ func (s *Uploads) DeleteUpload(ctx context.Context, id string) error {
 
 func (s *Uploads) ReservedBytes(ctx context.Context, userID int64) (int64, error) {
 	var total int64
-	err := s.db.QueryRowContext(ctx, `SELECT COALESCE(SUM(size), 0) FROM uploads WHERE user_id = ? AND result = ''`, userID).Scan(&total)
+	err := s.db.QueryRowContext(ctx, `SELECT COALESCE(SUM(CASE WHEN existing_only = 0 THEN size ELSE 0 END), 0) FROM uploads WHERE user_id = ? AND result = ''`, userID).Scan(&total)
 	return total, err
 }
 
@@ -286,7 +286,7 @@ func scanUpload(row scanner) (upload.Upload, error) {
 		rawDir, rawResult    string
 		createdAt, expiresAt int64
 	)
-	if err := row.Scan(&u.ID, &u.UserID, &u.Size, &u.Offset, &rawDir, &u.Name, &createdAt, &expiresAt, &u.ShareID, &u.Ready, &rawResult); err != nil {
+	if err := row.Scan(&u.ID, &u.UserID, &u.Size, &u.Offset, &rawDir, &u.Name, &createdAt, &expiresAt, &u.ShareID, &u.Ready, &rawResult, &u.SkipIdentical, &u.ExistingOnly); err != nil {
 		return upload.Upload{}, err
 	}
 	dir, err := files.ParsePath(rawDir)

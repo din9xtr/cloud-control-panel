@@ -431,3 +431,39 @@ func TestUploadRechecksQuotaBeforePublication(t *testing.T) {
 		t.Fatalf("recovered publication: %q", result.body)
 	}
 }
+
+func TestFolderUploadPolicyThroughHTTP(t *testing.T) {
+	c := newClient(t)
+	c.login()
+	create := func(size, policy string) response {
+		return c.do("POST", "/api/v1/uploads", nil, "Tus-Resumable", "1.0.0", "Upload-Length", size, "Upload-Metadata", tusMeta("filename", "notes.txt", "conflict", policy))
+	}
+	write := func(location, content string) response {
+		return c.do("PATCH", location, []byte(content), "Tus-Resumable", "1.0.0", "Upload-Offset", "0", "Content-Type", "application/offset+octet-stream")
+	}
+	for _, content := range []string{"abcd", "abcd", "abce"} {
+		created := c.expect(create("4", "skip-identical"), 201)
+		want := 204
+		if content == "abce" {
+			want = 409
+		}
+		c.expect(write(created.header.Get("Location"), content), want)
+		if want == 409 {
+			c.expect(c.do("HEAD", created.header.Get("Location"), nil, "Tus-Resumable", "1.0.0"), 409)
+		}
+	}
+	c.expect(create("3", "skip-identical"), 409)
+	c.expect(create("4", "overwrite"), 400)
+	original := c.expect(c.do("GET", "/api/v1/files/content?path=notes.txt", nil), 200)
+	if string(original.body) != "abcd" {
+		t.Fatalf("conflict replaced original: %q", original.body)
+	}
+	var folder struct{ Entries []struct{ Name string } }
+	c.expect(c.do("GET", "/api/v1/files", nil), 200).json(t, &folder)
+	if len(folder.Entries) != 1 {
+		t.Fatalf("folder retry duplicates: %+v", folder)
+	}
+	created := c.expect(create("4", "rename"), 201)
+	c.expect(write(created.header.Get("Location"), "abce"), 204)
+	c.expect(c.do("GET", "/api/v1/files/content?path=notes%20(1).txt", nil), 200)
+}

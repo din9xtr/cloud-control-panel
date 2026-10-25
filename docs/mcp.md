@@ -182,6 +182,9 @@ on each chunk request.
 `uploadFolder` requires a signed-in session and a source directory inside
 `--transfer-dir`. It preserves nesting and empty directories, merges existing
 remote directories, skips symlinks and never overwrites existing files. Partial
-results remain after failure; repeating a whole folder upload can produce duplicate
-files. It is excluded in read-only mode. Neither upload helper reads the server's
+results remain after failure. Repeating a folder upload reuses same-name files
+only when every byte matches; different content returns a conflict with no
+suffixed copy. Comparison retransmits the local file and requires temporary disk
+space, but no additional logical quota. Individual authenticated `uploadFile`
+calls can opt in with `"conflict":"skip-identical"`; public upload links cannot. It is excluded in read-only mode. Neither upload helper reads the server's
 database or storage directly.

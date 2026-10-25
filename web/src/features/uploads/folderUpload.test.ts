@@ -69,4 +69,19 @@ describe("folder uploads", () => {
     const selection = await droppedFiles([{}] as unknown as DataTransferItemList, [file] as unknown as FileList);
     expect(selection.files).toEqual([{ file, relativePath: "seed.txt" }]);
   });
+  it("uses content comparison for directory files and keeps ordinary file behavior", async () => {
+    server.use(http.post("/api/v1/files/folders", () => HttpResponse.json({}, { status: 201 })));
+    const policies: { name: string; skipIdentical: boolean | undefined }[] = [];
+    const uploads = new UploadQueue((file, _folder, _callbacks, skipIdentical) => ({
+      start: () => { policies.push({ name: file.name, skipIdentical }); },
+      pause: () => undefined,
+      cancel: () => undefined,
+    }), () => undefined);
+    await enqueueSelection({ directories: [], files: [
+      { file: new File(["a"], "notes.txt"), relativePath: "garden/notes.txt" },
+      { file: new File(["b"], "single.txt"), relativePath: "single.txt" },
+    ] }, "", uploads);
+    expect(policies).toEqual([{ name: "notes.txt", skipIdentical: true }, { name: "single.txt", skipIdentical: false }]);
+  });
+
 });

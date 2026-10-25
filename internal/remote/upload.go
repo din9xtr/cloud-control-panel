@@ -34,6 +34,9 @@ func (c *Client) Upload(ctx context.Context, source *os.File, args map[string]an
 	id := stringValue(args["uploadId"])
 	if id == "" {
 		metadata := "filename " + base64.StdEncoding.EncodeToString([]byte(name)) + ",folder " + base64.StdEncoding.EncodeToString([]byte(stringValue(args["folder"])))
+		if conflict := stringValue(args["conflict"]); conflict != "" {
+			metadata += ",conflict " + base64.StdEncoding.EncodeToString([]byte(conflict))
+		}
 		headers := http.Header{"Tus-Resumable": {"1.0.0"}, "Upload-Length": {strconv.FormatInt(info.Size(), 10)}, "Upload-Metadata": {metadata}}
 		resp, err := c.request(ctx, http.MethodPost, endpoint, nil, headers, nil)
 		if err != nil {

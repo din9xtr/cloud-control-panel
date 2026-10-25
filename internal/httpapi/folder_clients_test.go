@@ -39,6 +39,24 @@ func TestFolderFeaturesThroughCLIAndMCP(t *testing.T) {
 			if result["files"] != float64(1) || result["folders"] != float64(3) {
 				t.Fatalf("folder upload = %+v", result)
 			}
+			c.login()
+			if err := os.WriteFile(filepath.Join(dir, "garden", "greenhouse", "sprouts.txt"), []byte("green"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			partial := c.expect(c.do("POST", "/api/v1/uploads", nil, "Tus-Resumable", "1.0.0", "Upload-Length", "5", "Upload-Metadata", tusMeta("filename", "sprouts.txt", "folder", "garden/greenhouse", "conflict", "skip-identical")), 201)
+			partialLocation := partial.header.Get("Location")
+			c.expect(c.do("PATCH", partialLocation, []byte("gr"), "Tus-Resumable", "1.0.0", "Upload-Offset", "0", "Content-Type", "application/offset+octet-stream"), 204)
+			invoke("uploadFolder", map[string]any{"input": "garden"})
+			c.expect(c.do("DELETE", partialLocation, nil, "Tus-Resumable", "1.0.0"), 204)
+			complete := c.expect(c.do("GET", "/api/v1/files/content?path=garden/greenhouse/sprouts.txt", nil), 200)
+			if string(complete.body) != "green" {
+				t.Fatalf("folder retry content: %q", complete.body)
+			}
+			listing := invoke("listFolder", map[string]any{"path": "garden/greenhouse"})
+			entries, ok := listing["entries"].([]any)
+			if !ok || len(entries) != 2 {
+				t.Fatalf("folder retry created duplicates: %+v", listing)
+			}
 			invoke("listFolder", map[string]any{"path": "garden/empty"})
 			read := invoke("createLink", map[string]any{"path": "garden", "mode": "download"})
 			drop := invoke("createLink", map[string]any{"path": "garden", "mode": "upload"})

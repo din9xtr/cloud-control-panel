@@ -239,8 +239,17 @@ Low-level commands are `publicTusOptions`, `publicTusCreate`, `publicTusStatus`,
 
 The remote parent must exist. The command creates the top-level folder and nested
 folders, including empty ones, then streams files through tus. Existing directories
-are merged, duplicate filenames receive suffixes, and symlinks are skipped.
+are merged and symlinks are skipped. A same-name file is reused only after every
+byte matches. Different content returns a conflict without changing the existing
+file or creating a suffixed copy.
 `uploadFolder` requires a signed-in session; file requests accept individual files.
 Failures leave completed files and directories in place. Repeating the entire
-command can create duplicates. An interrupted file reports an upload ID which can
+command checks completed files again and uploads missing files. Comparing existing
+files requires retransmitting them and enough temporary disk space, but does not
+consume additional logical quota. An interrupted file reports an upload ID which can
 be resumed separately with `uploadFile`, the same unchanged input, and `--uploadId`.
+
+For the same policy on an individual authenticated upload, use
+`uploadFile --input ./seeds.txt --folder garden --conflict skip-identical`.
+The default individual-file policy remains `rename` (a suffix on collisions).
+Upload-only public links accept the default policy only.

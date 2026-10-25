@@ -94,6 +94,7 @@ func TestFileDropIsolationResumeAndRevoke(t *testing.T) {
 	create := func(folder, size string) response {
 		return anonymous.do("POST", base+"/uploads", nil, "Tus-Resumable", "1.0.0", "Upload-Length", size, "Upload-Metadata", tusMeta("filename", "seeds.txt", "folder", folder))
 	}
+	anonymous.expect(anonymous.do("POST", base+"/uploads", nil, "Tus-Resumable", "1.0.0", "Upload-Length", "4", "Upload-Metadata", tusMeta("filename", "seeds.txt", "conflict", "skip-identical")), 400)
 	anonymous.expect(create("elsewhere", "4"), 400)
 	anonymous.expect(create("", "5368709121"), 400)
 	u := anonymous.expect(create("", "4"), 201)

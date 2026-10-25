@@ -45,24 +45,26 @@ type Config struct {
 }
 
 type Service struct {
-	volume   *Volume
-	trash    TrashStore
-	observer PathObserver
-	quota    QuotaProvider
-	clock    func() time.Time
-	newID    func() string
-	usage    *usageCache
-	mu       sync.Mutex
+	volume      *Volume
+	trash       TrashStore
+	observer    PathObserver
+	quota       QuotaProvider
+	clock       func() time.Time
+	newID       func() string
+	usage       *usageCache
+	mu          sync.Mutex
+	comparisons chan struct{}
 }
 
 func NewService(cfg Config) *Service {
 	s := &Service{
-		volume:   cfg.Volume,
-		trash:    cfg.Trash,
-		observer: cfg.Observer,
-		quota:    cfg.Quota,
-		clock:    cfg.Clock,
-		newID:    cfg.NewID,
+		volume:      cfg.Volume,
+		comparisons: make(chan struct{}, 2),
+		trash:       cfg.Trash,
+		observer:    cfg.Observer,
+		quota:       cfg.Quota,
+		clock:       cfg.Clock,
+		newID:       cfg.NewID,
 	}
 	s.usage = newUsageCache(cfg.UsageTTL, cfg.Clock, s.computeUsage)
 	return s

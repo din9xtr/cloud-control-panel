@@ -61,12 +61,15 @@ export async function enqueueSelection(selection: FolderSelection, destination: 
       await api.GET("/files", { params: { query: { path } } });
     }
   }
-  const groups = new Map<string, File[]>();
+  const groups = new Map<string, { folder: string; files: File[]; skipIdentical: boolean }>();
   for (const { file, relativePath } of selection.files) {
-    const folder = absolute(segments(relativePath).slice(0, -1).join("/"));
-    const files = groups.get(folder) ?? [];
-    files.push(file);
-    groups.set(folder, files);
+    const parts = segments(relativePath);
+    const folder = absolute(parts.slice(0, -1).join("/"));
+    const skipIdentical = parts.length > 1;
+    const key = `${skipIdentical ? "folder" : "file"}:${folder}`;
+    const group = groups.get(key) ?? { folder, files: [], skipIdentical };
+    group.files.push(file);
+    groups.set(key, group);
   }
-  for (const [folder, files] of groups) queue.add(files, folder);
+  for (const { folder, files, skipIdentical } of groups.values()) queue.add(files, folder, skipIdentical);
 }

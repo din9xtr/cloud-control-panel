@@ -1,6 +1,7 @@
 package files
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -10,11 +11,15 @@ import (
 	"os"
 )
 
+const publicationReceiptLimit = 32 << 10
+
 type Publication struct {
-	Dir      Path
-	Name     string
-	Size     int64
-	Reserved int64
+	Dir           Path
+	Name          string
+	Size          int64
+	Reserved      int64
+	SkipIdentical bool
+	ExistingOnly  bool
 }
 
 func (s *Service) Publish(ctx context.Context, userID int64, stagingID string, in Publication) (Path, error) {
@@ -26,7 +31,7 @@ func (s *Service) Publish(ctx context.Context, userID int64, stagingID string, i
 	if err := s.requireDir(userID, in.Dir); err != nil {
 		return Path{}, err
 	}
-	target, err := s.publicationTarget(userID, stagingID, in.Dir, in.Name)
+	target, err := s.publicationTarget(userID, stagingID, in)
 	if err != nil {
 		return Path{}, err
 	}
@@ -41,11 +46,19 @@ func (s *Service) Publish(ctx context.Context, userID int64, stagingID string, i
 	destination := userPath(userID, target)
 	if info, err := s.volume.root.Lstat(destination); err == nil {
 		if !os.SameFile(sourceInfo, info) {
-			return Path{}, ErrExists
+			if !in.SkipIdentical || !info.Mode().IsRegular() || info.Size() != in.Size {
+				return Path{}, ErrExists
+			}
+			if err := s.matchExisting(ctx, stage, destination, info); err != nil {
+				return Path{}, err
+			}
 		}
 	} else if !errors.Is(err, fs.ErrNotExist) {
 		return Path{}, mapFSError(err)
 	} else {
+		if in.ExistingOnly {
+			return Path{}, ErrNotFound
+		}
 		if err := s.ensureQuota(ctx, userID, in.Size, in.Reserved); err != nil {
 			return Path{}, err
 		}
@@ -57,12 +70,12 @@ func (s *Service) Publish(ctx context.Context, userID int64, stagingID string, i
 	return target, nil
 }
 
-func (s *Service) publicationTarget(userID int64, id string, dir Path, name string) (Path, error) {
+func (s *Service) publicationTarget(userID int64, id string, in Publication) (Path, error) {
 	receipt := publicationFile(userID, id)
 	f, err := s.volume.root.Open(receipt)
 	if err == nil {
 		defer f.Close()
-		raw, err := io.ReadAll(io.LimitReader(f, 8193))
+		raw, err := io.ReadAll(io.LimitReader(f, publicationReceiptLimit+1))
 		if err != nil {
 			return Path{}, err
 		}
@@ -71,7 +84,7 @@ func (s *Service) publicationTarget(userID int64, id string, dir Path, name stri
 			return Path{}, errors.New("invalid publication receipt")
 		}
 		target, err := ParsePath(rawPath)
-		if err != nil || len(raw) > 8192 || target.IsRoot() || target.Parent() != dir {
+		if err != nil || len(raw) > publicationReceiptLimit || target.IsRoot() || target.Parent() != in.Dir {
 			return Path{}, errors.New("invalid publication receipt")
 		}
 		return target, nil
@@ -79,7 +92,10 @@ func (s *Service) publicationTarget(userID int64, id string, dir Path, name stri
 	if !errors.Is(err, fs.ErrNotExist) {
 		return Path{}, mapFSError(err)
 	}
-	target, err := s.uniquePath(userID, dir, name)
+	target, err := in.Dir.Join(in.Name)
+	if !in.SkipIdentical {
+		target, err = s.uniquePath(userID, in.Dir, in.Name)
+	}
 	if err != nil {
 		return Path{}, err
 	}
@@ -117,4 +133,102 @@ func (s *Service) ensureQuota(ctx context.Context, userID, need, reserved int64)
 		return ErrQuotaExceeded
 	}
 	return nil
+}
+
+func (s *Service) CheckExistingUpload(ctx context.Context, userID int64, dir Path, name string, size, reserved int64) (bool, error) {
+	if err := ctx.Err(); err != nil {
+		return false, err
+	}
+	target, err := dir.Join(name)
+	if err != nil {
+		return false, err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	info, err := s.volume.root.Lstat(userPath(userID, target))
+	if errors.Is(err, fs.ErrNotExist) {
+		return false, nil
+	}
+	if err != nil {
+		return false, mapFSError(err)
+	}
+	if !info.Mode().IsRegular() || info.Size() != size {
+		return false, ErrExists
+	}
+	disk, err := s.Disk()
+	if err != nil {
+		return false, err
+	}
+	if disk.FreeBytes < size+reserved+diskSafetyMargin {
+		return false, ErrDiskFull
+	}
+	return true, nil
+}
+
+func (s *Service) matchExisting(ctx context.Context, stage, destination string, info fs.FileInfo) error {
+	source, err := s.volume.root.Open(stage)
+	if err != nil {
+		return mapFSError(err)
+	}
+	defer source.Close()
+	existing, err := s.volume.root.Open(destination)
+	if err != nil {
+		return mapFSError(err)
+	}
+	defer existing.Close()
+	opened, err := existing.Stat()
+	if err != nil {
+		return mapFSError(err)
+	}
+	if !os.SameFile(info, opened) {
+		return ErrExists
+	}
+	s.mu.Unlock()
+	equal, compareErr := s.compareContents(ctx, source, existing, info.Size())
+	s.mu.Lock()
+	if compareErr != nil {
+		return compareErr
+	}
+	if !equal {
+		return ErrExists
+	}
+	current, err := s.volume.root.Lstat(destination)
+	if err != nil {
+		return mapFSError(err)
+	}
+	if !os.SameFile(info, current) || current.Size() != info.Size() || !current.ModTime().Equal(info.ModTime()) {
+		return ErrExists
+	}
+	return nil
+}
+
+func (s *Service) compareContents(ctx context.Context, a, b io.Reader, size int64) (bool, error) {
+	select {
+	case s.comparisons <- struct{}{}:
+		defer func() { <-s.comparisons }()
+		return sameContents(ctx, a, b, size)
+	case <-ctx.Done():
+		return false, ctx.Err()
+	}
+}
+
+func sameContents(ctx context.Context, a, b io.Reader, size int64) (bool, error) {
+	left, right := make([]byte, 128<<10), make([]byte, 128<<10)
+	for remaining := size; remaining > 0; {
+		if err := ctx.Err(); err != nil {
+			return false, err
+		}
+		count := int(min(int64(len(left)), remaining))
+		if _, err := io.ReadFull(a, left[:count]); err != nil {
+			return false, err
+		}
+		if _, err := io.ReadFull(b, right[:count]); err != nil {
+			return false, err
+		}
+		if !bytes.Equal(left[:count], right[:count]) {
+			return false, nil
+		}
+		remaining -= int64(count)
+	}
+	return true, ctx.Err()
 }
