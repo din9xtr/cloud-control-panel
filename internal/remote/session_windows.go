@@ -3,6 +3,7 @@ package remote
 import (
 	"bytes"
 	"errors"
+	"math"
 	"os"
 	"unsafe"
 
@@ -18,9 +19,13 @@ func validateSessionFile(info os.FileInfo) error {
 
 func protectSession(data []byte) ([]byte, error) {
 	if len(data) == 0 {
-		return nil, errors.New("empty session")
+		return nil, errors.New("invalid session size")
 	}
-	input := windows.DataBlob{Size: uint32(len(data)), Data: &data[0]}
+	size := len(data)
+	if size > math.MaxUint32 {
+		return nil, errors.New("session too large")
+	}
+	input := windows.DataBlob{Size: uint32(size), Data: &data[0]}
 	var output windows.DataBlob
 	if err := windows.CryptProtectData(&input, nil, nil, 0, nil, windows.CRYPTPROTECT_UI_FORBIDDEN, &output); err != nil {
 		return nil, err
@@ -31,9 +36,13 @@ func protectSession(data []byte) ([]byte, error) {
 
 func unprotectSession(data []byte) ([]byte, error) {
 	if len(data) == 0 {
-		return nil, errors.New("empty session")
+		return nil, errors.New("invalid session size")
 	}
-	input := windows.DataBlob{Size: uint32(len(data)), Data: &data[0]}
+	size := len(data)
+	if size > math.MaxUint32 {
+		return nil, errors.New("session too large")
+	}
+	input := windows.DataBlob{Size: uint32(size), Data: &data[0]}
 	var output windows.DataBlob
 	if err := windows.CryptUnprotectData(&input, nil, nil, 0, nil, windows.CRYPTPROTECT_UI_FORBIDDEN, &output); err != nil {
 		return nil, err
