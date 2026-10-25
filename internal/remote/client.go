@@ -95,11 +95,19 @@ func (c *Client) loadSession() error {
 	if err != nil {
 		return errors.New("inspect session file")
 	}
-	if !info.Mode().IsRegular() || info.Mode().Perm()&0o077 != 0 {
-		return errors.New("session file must be a regular file with mode 0600")
+	if err := validateSessionFile(info); err != nil {
+		return err
+	}
+	data, err := io.ReadAll(io.LimitReader(f, 64<<10))
+	if err != nil {
+		return errors.New("read session file")
+	}
+	data, err = unprotectSession(data)
+	if err != nil {
+		return errors.New("unlock session file; sign in again with the same OS account")
 	}
 	var state sessionState
-	if err := json.NewDecoder(io.LimitReader(f, 64<<10)).Decode(&state); err != nil {
+	if err := json.Unmarshal(data, &state); err != nil {
 		return errors.New("invalid session file; remove it and sign in again")
 	}
 	if state.Server != c.base.String() {
@@ -135,6 +143,10 @@ func (c *Client) saveSession(cookie *http.Cookie) error {
 	data, err := json.Marshal(sessionState{Server: c.base.String(), Cookie: c.cookie})
 	if err != nil {
 		return fmt.Errorf("encode session: %w", err)
+	}
+	data, err = protectSession(data)
+	if err != nil {
+		return errors.New("protect session file")
 	}
 	f, err := os.CreateTemp(filepath.Dir(c.stateFile), ".session-*")
 	if err != nil {

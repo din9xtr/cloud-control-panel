@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -61,7 +62,7 @@ func TestCLIFullManagement(t *testing.T) {
 	}
 	run("setup", map[string]any{"username": "owner", "password": adminPassword})
 	info, err := os.Stat(session)
-	if err != nil || info.Mode().Perm() != 0o600 {
+	if err != nil || (runtime.GOOS != "windows" && info.Mode().Perm() != 0o600) {
 		t.Fatalf("session permissions: %v, %v", info, err)
 	}
 	run("logout", empty)

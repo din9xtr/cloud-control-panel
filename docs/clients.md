@@ -48,14 +48,26 @@ in the background; reopen it and resume, selecting the same unchanged source if 
 
 ## Install the CLI and sign in
 
-Build the same binary on the computer that will run CLI or MCP, with Go 1.27:
+Download and extract the archive for your OS and CPU from
+[Releases](https://github.com/din9xtr/cloud-control-panel/releases/latest).
+It contains the server, web interface, CLI and MCP server in the same binary.
+Use `cloud.exe` in PowerShell on Windows; `darwin` archives are for macOS.
+Run `./cloud serve` (Windows: `.\cloud.exe serve`) to start a local server,
+or use the CLI to connect to an existing server.
+
+To build from source instead, use Go 1.27. Build the frontend first when the
+binary should also serve the web interface:
 
 ```bash
+pnpm --dir web install --frozen-lockfile
+pnpm --dir web build
 go build -o cloud ./cmd/cloud
 export CLOUD_SERVER=https://cloud.example.com
 ./cloud cli login --username owner
 ./cloud cli ls
 ```
+
+For a downloaded binary, start with the `CLOUD_SERVER` and login steps.
 
 Use your account name instead of `owner`. The password prompt avoids shell history.
 For a new server, `./cloud cli setup --username owner` can create the first account

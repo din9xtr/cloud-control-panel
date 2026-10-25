@@ -35,6 +35,19 @@ go test -race ./internal/remote ./internal/command ./internal/httpapi
 
 See [CLI](cli.md) for terminal examples and [MCP](mcp.md) for agent configuration.
 
+## Release binaries
+
+Run `python3 scripts/release.py v0.2.0` with Python 3.11+, Go, Node and pnpm
+installed. The script installs locked frontend dependencies, builds the embedded
+SPA, cross-compiles without CGO for Linux/macOS/Windows on amd64 and arm64, and
+creates six archives with `SHA256SUMS` under `bin/releases/v0.2.0/`.
+Each version needs release notes at `docs/releases/VERSION.md`.
+
+Run the manual **Release checks** GitHub Actions workflow before publication
+to test on native Linux, macOS and Windows runners. Cross-compilation alone
+does not verify runtime behavior on another OS. Executables are unsigned;
+release archives are attached to the matching Git tag.
+
 ## One contract for every client
 
 `api/openapi.yaml` owns HTTP operations, request/response schemas, CLI aliases

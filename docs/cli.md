@@ -40,9 +40,12 @@ Global flags go **before** the command; operation flags go after it:
 
 On macOS the default session directory is `~/Library/Application Support/cloud`;
 on Linux it follows Go's `os.UserConfigDir` (`$XDG_CONFIG_HOME` or `~/.config`).
-The filename includes a hash of the server origin. Session files are private (`0600`),
-bound to one server, and contain credentials: do not commit or share them. A session
-file with group or other permissions is rejected; restore it with `chmod 600 FILE`.
+On Windows the directory is under `%AppData%`. The filename includes a hash of the
+server origin. Session files are bound to one server and contain credentials:
+do not commit or share them. On Linux/macOS, files are private (`0600`); files with
+group or other permissions are rejected. Restore them with `chmod 600 FILE`.
+On Windows, sessions are encrypted with DPAPI for the current Windows account;
+they cannot be moved to a different account or used as plaintext JSON.
 The CLI never prints the session token. Sessions expire and can be revoked from any
 client. Use `logout` to invalidate the current session on the server.
 

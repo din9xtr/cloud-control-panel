@@ -11,6 +11,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -107,11 +108,13 @@ func TestClientSessionIsolationAndRedirection(t *testing.T) {
 	if _, err := NewClient(target.URL, state, time.Second); err == nil {
 		t.Fatal("cross-server session accepted")
 	}
-	if err := os.Chmod(state, 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := NewClient(srv.URL, state, time.Second); err == nil {
-		t.Fatal("world-readable session accepted")
+	if runtime.GOOS != "windows" {
+		if err := os.Chmod(state, 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := NewClient(srv.URL, state, time.Second); err == nil {
+			t.Fatal("world-readable session accepted")
+		}
 	}
 }
 

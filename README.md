@@ -47,6 +47,14 @@ container, SQLite and your own disk.
 
 ### `02 / QUICK START`
 
+Download a native binary for **Linux, macOS or Windows** from
+[Releases](https://github.com/din9xtr/cloud-control-panel/releases/latest).
+Choose `amd64` for Intel/AMD or `arm64` for ARM/Apple Silicon, extract it and run
+`./cloud serve` (`.\cloud.exe serve` in PowerShell). Open `http://localhost:8080`.
+The binary includes the web interface, CLI and MCP server.
+
+Or use Docker:
+
 Requirements: Docker with Compose v2.
 
 ```bash
