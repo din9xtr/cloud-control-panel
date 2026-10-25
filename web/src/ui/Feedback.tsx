@@ -1,22 +1,23 @@
 import type { ReactNode } from "react";
+import { cn } from "@/lib/cn";
 import { Spinner } from "./Button";
 
 export function EmptyState({ icon, title, children }: { icon: ReactNode; title: string; children?: ReactNode }) {
   return (
-    <div className="flex flex-col items-center justify-center gap-3 px-6 py-20 text-center">
-      <span className="flex size-12 items-center justify-center rounded-2xl border border-line bg-sunken text-fg-subtle" aria-hidden>
+    <div className="flex animate-reveal flex-col items-center justify-center gap-4 px-6 py-24 text-center">
+      <span className="flex size-14 items-center justify-center rounded-card border border-line bg-surface text-fg-subtle" aria-hidden>
         {icon}
       </span>
-      <p className="m-0 text-[15px] font-medium">{title}</p>
-      {children && <div className="max-w-sm text-[13px] text-fg-subtle">{children}</div>}
+      <p className="type-title m-0">{title}</p>
+      {children && <div className="type-body max-w-md text-fg-subtle">{children}</div>}
     </div>
   );
 }
 
 export function Loading({ label = "Loading" }: { label?: string }) {
   return (
-    <div role="status" className="flex items-center justify-center gap-2 py-20 text-[13px] text-fg-subtle">
-      <Spinner />
+    <div role="status" className="type-small flex animate-fade-in items-center justify-center gap-2.5 py-24 text-fg-subtle">
+      <Spinner className="size-4" />
       {label}
     </div>
   );
@@ -24,10 +25,10 @@ export function Loading({ label = "Loading" }: { label?: string }) {
 
 export function ErrorState({ message, onRetry }: { message: string; onRetry?: () => void }) {
   return (
-    <div role="alert" className="flex flex-col items-center gap-3 py-20 text-center text-[13px] text-fg-muted">
+    <div role="alert" className="type-body flex flex-col items-center gap-3 py-24 text-center text-fg-muted">
       <p className="m-0">{message}</p>
       {onRetry && (
-        <button type="button" onClick={onRetry} className="cursor-pointer rounded-md px-3 py-1.5 text-fg underline-offset-4 hover:underline">
+        <button type="button" onClick={onRetry} className="cursor-pointer text-link underline-offset-4 hover:underline">
           Try again
         </button>
       )}
@@ -35,14 +36,20 @@ export function ErrorState({ message, onRetry }: { message: string; onRetry?: ()
   );
 }
 
-export function PageHeader({ eyebrow, title, actions }: { eyebrow: string; title: ReactNode; actions?: ReactNode }) {
+export function PageHeader({ eyebrow, title, actions, children }: { eyebrow?: string; title: ReactNode; actions?: ReactNode; children?: ReactNode }) {
   return (
-    <header className="flex flex-wrap items-end justify-between gap-4">
-      <div className="flex min-w-0 flex-col gap-1.5">
-        <span className="label-caps">{eyebrow}</span>
-        <h1 className="m-0 text-[26px] leading-tight font-semibold tracking-[-0.01em]">{title}</h1>
+    <header className="flex animate-reveal flex-wrap items-end justify-between gap-x-6 gap-y-5">
+      <div className="flex min-w-0 flex-col gap-2">
+        {eyebrow && <span className="label-caps">{eyebrow}</span>}
+        <h1 className="type-page m-0">{title}</h1>
+        {children && <div className="type-body mt-1 max-w-[640px] text-fg-muted">{children}</div>}
       </div>
-      {actions && <div className="flex flex-wrap gap-2">{actions}</div>}
+      {actions && <div className="flex flex-wrap gap-3">{actions}</div>}
     </header>
   );
+}
+
+export function Badge({ children, tone = "neutral" }: { children: ReactNode; tone?: "neutral" | "info" }) {
+  const tones = { neutral: "bg-elevated text-fg-secondary", info: "bg-accent/15 text-link" };
+  return <span className={cn("type-micro inline-flex shrink-0 items-center gap-1 rounded-md px-1.5 py-0.5 font-medium", tones[tone])}>{children}</span>;
 }

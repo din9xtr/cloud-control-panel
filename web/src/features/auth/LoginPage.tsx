@@ -5,6 +5,7 @@ import { useLogin } from "@/api/queries";
 import { Button } from "@/ui/Button";
 import { safeRedirect } from "@/lib/redirect";
 import { Field } from "@/ui/Field";
+import { AuthLayout } from "./AuthLayout";
 
 function loginError(error: unknown): string {
   if (error instanceof ApiError) {
@@ -30,12 +31,8 @@ export function LoginPage({ redirect = "/files" }: { redirect?: string }) {
   };
 
   return (
-    <main className="flex min-h-dvh flex-col items-center justify-center gap-10 px-4 py-6">
-      <div className="flex flex-col items-center gap-2.5">
-        <samp className="font-mono text-[13px] text-fg-subtle">guest@localhost:~$ ssh cloud</samp>
-        <h1 className="m-0 font-mono text-3xl font-medium tracking-[-0.01em]">cloud_</h1>
-      </div>
-      <form onSubmit={submit} className="flex w-full max-w-[360px] flex-col gap-4" noValidate>
+    <AuthLayout title="Sign in" prompt="guest@localhost:~$ ssh cloud" intro="Your files, on your own server." footnote="store. share. stay in control.">
+      <form onSubmit={submit} className="flex flex-col gap-4" noValidate>
         <Field
           label="Username"
           name="username"
@@ -57,15 +54,14 @@ export function LoginPage({ redirect = "/files" }: { redirect?: string }) {
           onChange={(e) => setPassword(e.target.value)}
         />
         {login.isError && (
-          <p role="alert" className="m-0 text-[13px] text-danger">
+          <p role="alert" className="type-small m-0 text-center text-danger">
             {loginError(login.error)}
           </p>
         )}
-        <Button type="submit" variant="primary" size="lg" busy={login.isPending} disabled={!username.trim() || !password}>
+        <Button type="submit" variant="primary" size="lg" className="mt-2" busy={login.isPending} disabled={!username.trim() || !password}>
           Sign in
         </Button>
       </form>
-      <samp className="font-mono text-xs text-fg-subtle">store. share. stay in control.</samp>
-    </main>
+    </AuthLayout>
   );
 }

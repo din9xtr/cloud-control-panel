@@ -27,16 +27,16 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <ToastContext.Provider value={value}>
       {children}
-      <div aria-live="polite" className="pointer-events-none fixed inset-x-0 bottom-0 z-50 flex flex-col items-center gap-2 p-4 pb-[calc(env(safe-area-inset-bottom)+88px)] sm:items-end sm:pb-6">
+      <div aria-live="polite" className="pointer-events-none fixed inset-x-0 bottom-0 z-50 flex flex-col items-center gap-2 p-4 pb-[calc(env(safe-area-inset-bottom)+96px)] sm:items-end sm:pb-6">
         {toasts.map((t) => (
           <div
             key={t.id}
             role={t.tone === "error" ? "alert" : "status"}
-            className="pointer-events-auto flex max-w-sm animate-rise items-center gap-3 rounded-xl border border-line-strong bg-surface/95 py-2.5 pr-2 pl-3.5 text-[13px] shadow-float backdrop-blur-xl"
+            className="type-small pointer-events-auto flex max-w-sm animate-rise items-center gap-3 rounded-card border border-line-strong bg-raised py-2.5 pr-2 pl-3.5 shadow-float"
           >
-            {t.tone === "error" ? <CircleAlert size={16} className="text-danger" aria-hidden /> : <Check size={16} className="text-fg-muted" aria-hidden />}
+            {t.tone === "error" ? <CircleAlert size={16} className="text-danger" aria-hidden /> : <Check size={16} strokeWidth={2.25} className="text-success" aria-hidden />}
             <span className={cn("flex-1", t.tone === "error" && "text-fg")}>{t.message}</span>
-            <button type="button" aria-label="Dismiss" onClick={() => dismiss(t.id)} className="inline-flex size-7 cursor-pointer items-center justify-center rounded-md text-fg-subtle hover:bg-raised hover:text-fg">
+            <button type="button" aria-label="Dismiss" onClick={() => dismiss(t.id)} className="inline-flex size-7 cursor-pointer items-center justify-center rounded-md text-fg-subtle transition-colors hover:bg-elevated hover:text-fg">
               <X size={14} aria-hidden />
             </button>
           </div>

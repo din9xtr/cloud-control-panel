@@ -3,7 +3,9 @@ import { ArrowRightLeft, Clock, Download, Eye, FolderOpen, Link2, MoreHorizontal
 import type { Entry } from "@/api/client";
 import { cn } from "@/lib/cn";
 import { formatBytes, formatDate, formatRemaining } from "@/lib/format";
+import { stagger } from "@/lib/motion";
 import { archiveUrl, contentUrl, displayPath, filesHref, parentPath } from "@/lib/paths";
+import { Badge } from "@/ui/Feedback";
 import { Menu, type MenuItem } from "@/ui/Menu";
 import { EntryIcon, previewKind } from "./entryKind";
 
@@ -31,10 +33,10 @@ const iconProps = { size: 16, strokeWidth: 1.75 } as const;
 export function FileList({ entries, selected, onToggle, onToggleAll, actions, showLocation, selectMode, label }: FileListProps) {
   const allSelected = entries.length > 0 && entries.every((e) => selected.has(e.path));
   return (
-    <div role="table" aria-label={label} className="flex flex-col">
-      <div role="row" className="label-caps hidden h-9 grid-cols-[40px_minmax(0,1fr)_110px_150px_48px] items-center border-b border-line px-3 sm:grid">
-        <span role="columnheader">
-          <input type="checkbox" aria-label="Select all" checked={allSelected} onChange={onToggleAll} className="size-4 cursor-pointer" />
+    <div role="table" aria-label={label} className="flex animate-reveal flex-col overflow-hidden rounded-card border border-line bg-surface [animation-delay:80ms] max-sm:-mx-4 max-sm:rounded-none max-sm:border-x-0 max-sm:bg-transparent">
+      <div role="row" className="label-caps hidden h-12 grid-cols-[44px_minmax(0,1fr)_120px_170px_52px] items-center border-b border-line-strong px-5 sm:grid">
+        <span role="columnheader" className="flex">
+          <input type="checkbox" aria-label="Select all" checked={allSelected} onChange={onToggleAll} className="check" />
         </span>
         <span role="columnheader">Name</span>
         <span role="columnheader" className="text-right">
@@ -47,37 +49,39 @@ export function FileList({ entries, selected, onToggle, onToggleAll, actions, sh
           Actions
         </span>
       </div>
-      {entries.map((entry) => (
-        <Row key={entry.path} entry={entry} selected={selected.has(entry.path)} onToggle={onToggle} actions={actions} showLocation={showLocation} selectMode={selectMode} />
+      {entries.map((entry, index) => (
+        <Row key={entry.path} index={index} entry={entry} selected={selected.has(entry.path)} onToggle={onToggle} actions={actions} showLocation={showLocation} selectMode={selectMode} />
       ))}
     </div>
   );
 }
 
-type RowProps = { entry: Entry; selected: boolean; onToggle: (path: string) => void; actions: EntryActions; showLocation?: boolean; selectMode: boolean };
+type RowProps = { index: number; entry: Entry; selected: boolean; onToggle: (path: string) => void; actions: EntryActions; showLocation?: boolean; selectMode: boolean };
 
-function Row({ entry, selected, onToggle, actions, showLocation, selectMode }: RowProps) {
+function Row({ index, entry, selected, onToggle, actions, showLocation, selectMode }: RowProps) {
   const isDir = entry.kind === "dir";
   const meta = isDir ? formatDate(entry.modifiedAt) : `${formatBytes(entry.size)} · ${formatDate(entry.modifiedAt)}`;
   return (
     <div
       role="row"
       aria-selected={selected}
+      style={index < 24 ? stagger(index, 120) : undefined}
       className={cn(
-        "group grid min-h-[60px] items-center gap-x-1 border-b border-line pr-1 pl-4 transition-colors sm:min-h-12 sm:grid-cols-[40px_minmax(0,1fr)_110px_150px_48px] sm:gap-x-0 sm:px-3",
-        selectMode ? "grid-cols-[36px_minmax(0,1fr)_44px]" : "grid-cols-[minmax(0,1fr)_44px]",
-        selected ? "bg-selected" : "hover:bg-sunken",
+        "group relative grid min-h-16 animate-fade-in items-center gap-x-1 pr-1 pl-4 transition-colors duration-200 ease-swift sm:min-h-14 sm:grid-cols-[44px_minmax(0,1fr)_120px_170px_52px] sm:gap-x-0 sm:px-5",
+        "after:absolute after:right-0 after:bottom-0 after:left-[52px] after:h-px after:bg-line last:after:hidden sm:after:left-[64px]",
+        selectMode ? "grid-cols-[40px_minmax(0,1fr)_44px]" : "grid-cols-[minmax(0,1fr)_44px]",
+        selected ? "bg-selected" : "hover:bg-raised/60",
       )}
     >
       <span role="cell" className={cn(selectMode ? "flex" : "hidden", "sm:flex")}>
-        <input type="checkbox" aria-label={`Select ${entry.name}`} checked={selected} onChange={() => onToggle(entry.path)} className="size-5 cursor-pointer sm:size-4" />
+        <input type="checkbox" aria-label={`Select ${entry.name}`} checked={selected} onChange={() => onToggle(entry.path)} className="check" />
       </span>
       <span role="cell" className="flex min-w-0 items-center gap-3.5 sm:gap-3">
         <span className="flex shrink-0 sm:hidden">
-          <EntryIcon entry={entry} size={22} />
+          <EntryIcon entry={entry} size={24} />
         </span>
         <span className="hidden shrink-0 sm:flex">
-          <EntryIcon entry={entry} />
+          <EntryIcon entry={entry} size={22} />
         </span>
         <span className="flex min-w-0 flex-col gap-0.5 sm:flex-row sm:items-center sm:gap-2">
           <EntryName entry={entry} onOpen={actions.open} />
@@ -103,7 +107,7 @@ function Row({ entry, selected, onToggle, actions, showLocation, selectMode }: R
 }
 
 function EntryName({ entry, onOpen }: { entry: Entry; onOpen: (entry: Entry) => void }) {
-  const className = "min-w-0 truncate text-left text-[15px] text-fg no-underline hover:underline underline-offset-4 decoration-fg-faint sm:text-sm cursor-pointer";
+  const className = "type-body min-w-0 cursor-pointer truncate text-left text-fg no-underline decoration-fg-faint underline-offset-4 transition-colors duration-200 hover:text-link";
   if (entry.kind === "dir") {
     return (
       <Link to={filesHref(entry.path)} className={className}>
@@ -120,9 +124,11 @@ function EntryName({ entry, onOpen }: { entry: Entry; onOpen: (entry: Entry) => 
 
 function LinkBadge({ expiresAt }: { expiresAt: string }) {
   return (
-    <span title="Temporary link active" className="hidden shrink-0 items-center gap-1 rounded-full border border-line-strong px-2 py-0.5 font-mono text-[11px] text-fg-muted sm:inline-flex">
-      <Clock size={11} strokeWidth={2} aria-hidden />
-      link · {formatRemaining(expiresAt)}
+    <span title="Temporary link active" className="hidden sm:inline-flex">
+      <Badge tone="info">
+        <Clock size={11} strokeWidth={2.5} aria-hidden />
+        link · {formatRemaining(expiresAt)}
+      </Badge>
     </span>
   );
 }

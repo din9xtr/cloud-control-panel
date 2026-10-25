@@ -8,6 +8,7 @@ import { formatBytes, formatDate, formatRemaining } from "@/lib/format";
 import { displayPath, parentPath } from "@/lib/paths";
 import { Button } from "@/ui/Button";
 import { Dialog } from "@/ui/Dialog";
+import { control } from "@/ui/Field";
 import { useToast } from "@/ui/Toast";
 
 const hour = 3600;
@@ -43,20 +44,25 @@ export function ShareDialog({ entry, onClose }: { entry: Entry; onClose: () => v
       footer={<Button onClick={onClose}>Done</Button>}
     >
       {entry.kind === "dir" && (
-        <label className="flex flex-col gap-2 text-[13px] text-fg-muted">
+        <label className="type-small flex flex-col gap-2 text-fg-muted">
           Link access
-          <select aria-label="Link access" value={mode} onChange={(event) => { setMode(event.target.value as Link["mode"]); setCreated(null); }} className="h-11 rounded-lg border border-line-strong bg-canvas px-3 text-base text-fg sm:h-10 sm:text-sm">
+          <select aria-label="Link access" value={mode} onChange={(event) => { setMode(event.target.value as Link["mode"]); setCreated(null); }} className={cn(control, "type-body h-12 cursor-pointer appearance-none px-4")}>
             <option value="download">View and download</option>
             <option value="upload">Upload only</option>
           </select>
-          <span>{mode === "upload" ? "Visitors can upload files into this folder. Its contents stay private and existing files are never overwritten." : "Visitors can browse this folder and download files or ZIP archives."}</span>
+          <span className="text-fg-subtle">{mode === "upload" ? "Visitors can upload files into this folder. Its contents stay private and existing files are never overwritten." : "Visitors can browse this folder and download files or ZIP archives."}</span>
         </label>
       )}
       <div className="flex flex-col gap-2">
-        <span id="ttl-label" className="text-[13px] text-fg-muted">
+        <span id="ttl-label" className="type-small text-fg-muted">
           Expires after
         </span>
-        <div role="radiogroup" aria-labelledby="ttl-label" className="flex gap-0.5 rounded-lg border border-line bg-canvas p-0.5">
+        <div role="radiogroup" aria-labelledby="ttl-label" className="relative grid grid-cols-3 rounded-[10px] bg-sunken p-0.5">
+          <span
+            aria-hidden
+            className="absolute inset-y-0.5 left-0.5 w-[calc((100%-4px)/3)] rounded-lg bg-elevated shadow-[0_3px_8px_rgb(0_0_0/0.24)] transition-transform duration-280 ease-glide"
+            style={{ transform: `translateX(${Math.max(0, lifetimes.findIndex((o) => o.seconds === selected)) * 100}%)` }}
+          />
           {lifetimes.map((option) => (
             <button
               key={option.seconds}
@@ -68,8 +74,8 @@ export function ShareDialog({ entry, onClose }: { entry: Entry; onClose: () => v
                 setCreated(null);
               }}
               className={cn(
-                "h-11 flex-1 cursor-pointer rounded-md text-[13px] font-medium transition-colors sm:h-8",
-                selected === option.seconds ? "bg-line-strong text-fg" : "text-fg-muted hover:text-fg",
+                "type-small relative h-11 cursor-pointer rounded-lg font-semibold transition-colors duration-200 sm:h-9",
+                selected === option.seconds ? "text-fg" : "text-fg-muted hover:text-fg",
               )}
             >
               {option.label}
@@ -86,14 +92,14 @@ export function ShareDialog({ entry, onClose }: { entry: Entry; onClose: () => v
         </Button>
       )}
       {create.isError && (
-        <p role="alert" className="m-0 text-[13px] text-danger">
+        <p role="alert" className="type-small m-0 text-danger">
           {messageOf(create.error)}
         </p>
       )}
 
       {active.length > 0 && (
-        <section aria-labelledby="active-links" className="flex flex-col gap-2.5 border-t border-line pt-3.5">
-          <h3 id="active-links" className="label-caps m-0 font-normal">
+        <section aria-labelledby="active-links" className="flex flex-col gap-3 border-t border-line-strong pt-5">
+          <h3 id="active-links" className="label-caps m-0">
             Active links for this item
           </h3>
           <ul className="m-0 flex list-none flex-col gap-1 p-0">
@@ -125,7 +131,7 @@ function CreatedLink({ link }: { link: Link }) {
 
   return (
     <div className="flex flex-col gap-2">
-      <label htmlFor="share-url" className="text-[13px] text-fg-muted">
+      <label htmlFor="share-url" className="type-small text-fg-muted">
         Link
       </label>
       <div className="flex gap-2">
@@ -134,9 +140,9 @@ function CreatedLink({ link }: { link: Link }) {
           readOnly
           value={url}
           onFocus={(e) => e.currentTarget.select()}
-          className="h-10 min-w-0 flex-1 rounded-lg border border-line-strong bg-canvas px-3 font-mono text-xs text-fg outline-none focus:border-fg-muted sm:h-9"
+          className={cn(control, "h-10 min-w-0 flex-1 px-3.5 font-mono text-[13px]")}
         />
-        <Button variant="primary" onClick={copy} icon={copied ? <Check size={15} aria-hidden /> : <Copy size={15} aria-hidden />} className="max-sm:h-10">
+        <Button variant="primary" onClick={copy} icon={copied ? <Check size={15} aria-hidden /> : <Copy size={15} aria-hidden />} className="h-10">
           {copied ? "Copied" : "Copy"}
         </Button>
         {canShare && (
@@ -145,9 +151,9 @@ function CreatedLink({ link }: { link: Link }) {
           </Button>
         )}
       </div>
-      <p className="m-0 flex items-start gap-2 text-[13px] leading-relaxed text-fg-subtle">
-        <Clock size={14} className="mt-1 shrink-0" aria-hidden />
-        <span>Anyone with the link can {link.mode === "upload" ? "upload" : "download"} until <span className="font-mono text-fg-muted">{formatDate(link.expiresAt)}</span></span>
+      <p className="type-small m-0 flex items-start gap-2 text-fg-subtle">
+        <Clock size={14} className="mt-[3px] shrink-0" aria-hidden />
+        <span>Anyone with the link can {link.mode === "upload" ? "upload" : "download"} until <span className="text-fg-secondary">{formatDate(link.expiresAt)}</span></span>
       </p>
     </div>
   );
@@ -158,9 +164,9 @@ function ActiveLink({ link }: { link: Link }) {
   const toast = useToast();
   const short = link.url.length > 14 ? `${link.url.slice(0, 7)}…${link.url.slice(-3)}` : link.url;
   return (
-    <li className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 rounded-lg bg-canvas px-3 py-2.5 text-[13px] sm:flex">
-      <span className="flex-1 truncate font-mono text-fg-muted">{short}</span>
-      <span className="col-start-1 row-start-2 font-mono text-xs text-fg-subtle">
+    <li className="type-small grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 rounded-control border border-line bg-sunken px-4 py-3 sm:flex">
+      <span className="flex-1 truncate font-mono text-[13px] text-fg-muted">{short}</span>
+      <span className="type-micro col-start-1 row-start-2 text-fg-subtle">
         {formatRemaining(link.expiresAt)} · {link.mode === "upload" ? "upload only" : `${link.downloads}`} {link.mode === "upload" ? "" : link.downloads === 1 ? "download" : "downloads"}
       </span>
       <Button

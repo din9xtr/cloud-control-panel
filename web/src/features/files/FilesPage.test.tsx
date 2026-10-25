@@ -28,6 +28,13 @@ describe("FilesPage", () => {
     expect(within(rows[1]!).getAllByText("24.1 MB").length).toBeGreaterThan(0);
   });
 
+  it("opens a folder from its actions menu instead of downloading it", async () => {
+    const { router } = renderWithApp(<FilesPage path="garden" />, { path: "/files/garden" });
+    await userEvent.click(await screen.findByRole("button", { name: "Actions for seedlings" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Open" }));
+    await waitFor(() => expect(router.state.location.pathname).toBe("/files/garden/seedlings"));
+  });
+
   it("shows an empty state for empty folders", async () => {
     renderWithApp(<FilesPage path="empty" />);
     expect(await screen.findByText("This folder is empty")).toBeInTheDocument();

@@ -6,6 +6,7 @@ import { useSetup } from "@/api/queries";
 import { type FieldErrors, fieldErrors, usernameSchema } from "@/features/settings/credentials";
 import { Button } from "@/ui/Button";
 import { Field } from "@/ui/Field";
+import { AuthLayout } from "./AuthLayout";
 
 const bytes = (value: string) => new TextEncoder().encode(value).length;
 
@@ -42,25 +43,20 @@ export function SetupPage() {
   };
 
   return (
-    <main className="flex min-h-dvh flex-col items-center justify-center gap-10 px-4 py-6">
-      <div className="flex flex-col items-center gap-2.5 text-center">
-        <samp className="font-mono text-[13px] text-fg-subtle">guest@localhost:~$ cloud init</samp>
-        <h1 className="m-0 font-mono text-3xl font-medium tracking-[-0.01em]">cloud_</h1>
-        <p className="m-0 max-w-[320px] text-[13px] text-fg-muted">Create the account you will use to sign in. You can change it later in Settings.</p>
-      </div>
-      <form onSubmit={submit} className="flex w-full max-w-[360px] flex-col gap-4" noValidate>
+    <AuthLayout title="Create your account" prompt="guest@localhost:~$ cloud init" intro="Create the account you will use to sign in. You can change it later in Settings.">
+      <form onSubmit={submit} className="flex flex-col gap-4" noValidate>
         <Field label="Username" mono autoComplete="username" autoCapitalize="none" spellCheck={false} value={values.username} onChange={set("username")} error={errors.username} />
         <Field label="Password" type="password" autoComplete="new-password" value={values.password} onChange={set("password")} error={errors.password} hint="At least 8 characters." autoFocus />
         <Field label="Repeat password" type="password" autoComplete="new-password" value={values.confirm} onChange={set("confirm")} error={errors.confirm} />
         {errors.form && (
-          <p role="alert" className="m-0 text-[13px] text-danger">
+          <p role="alert" className="type-small m-0 text-center text-danger">
             {errors.form}
           </p>
         )}
-        <Button type="submit" variant="primary" size="lg" busy={setup.isPending}>
+        <Button type="submit" variant="primary" size="lg" className="mt-2" busy={setup.isPending}>
           Create account
         </Button>
       </form>
-    </main>
+    </AuthLayout>
   );
 }

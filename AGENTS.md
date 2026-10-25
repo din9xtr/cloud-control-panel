@@ -84,6 +84,12 @@ Every change must leave all of the above green.
   text, always with a sandboxing Content Security Policy.
 - Keep the CSP strict: no inline scripts or styles, no third-party origins.
 
+## Web design
+
+Read [docs/design.md](docs/design.md) before changing anything visual in `web/`: tokens,
+typography, layout, components and motion timings are defined there. Use the existing
+tokens and components instead of new values, and check both desktop and phone widths.
+
 ## Fixtures and screenshots
 
 Use invented, neutral names in tests, fixtures, demo data and screenshots

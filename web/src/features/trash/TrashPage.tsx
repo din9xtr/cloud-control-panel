@@ -2,24 +2,28 @@ import { useQuery } from "@tanstack/react-query";
 import { RotateCcw, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { messageOf, type TrashItem } from "@/api/client";
-import { trashQuery, useDeleteForever, useEmptyTrash, useRestore } from "@/api/queries";
+import { settingsQuery, trashQuery, useDeleteForever, useEmptyTrash, useRestore } from "@/api/queries";
 import { EntryIcon } from "@/features/files/entryKind";
+import { PageBar, PrimaryAction, Page } from "@/layout/PageBar";
 import { formatBytes, formatDate, formatRemaining } from "@/lib/format";
+import { stagger } from "@/lib/motion";
 import { displayPath, parentPath } from "@/lib/paths";
 import { Button } from "@/ui/Button";
 import { Dialog } from "@/ui/Dialog";
-import { EmptyState, ErrorState, Loading, PageHeader } from "@/ui/Feedback";
+import { Badge, EmptyState, ErrorState, Loading, PageHeader } from "@/ui/Feedback";
 import { useToast } from "@/ui/Toast";
 
 type Confirm = { kind: "none" } | { kind: "empty" } | { kind: "item"; item: TrashItem };
 
 export function TrashPage() {
   const { data, isPending, isError, error, refetch } = useQuery(trashQuery);
+  const { data: settings } = useQuery(settingsQuery);
   const [confirm, setConfirm] = useState<Confirm>({ kind: "none" });
   const empty = useEmptyTrash();
   const remove = useDeleteForever();
   const toast = useToast();
   const total = data?.reduce((sum, i) => sum + i.size, 0) ?? 0;
+  const hasItems = !!data && data.length > 0;
 
   const close = () => setConfirm({ kind: "none" });
   const confirmDelete = () => {
@@ -31,36 +35,31 @@ export function TrashPage() {
   };
 
   return (
-    <div className="flex w-full max-w-[960px] flex-col gap-6 px-4 pt-[max(env(safe-area-inset-top),24px)] pb-10 sm:px-7 sm:pt-8">
-      <PageHeader
-        eyebrow="04 / Trash"
-        title={
-          <>
-            Trash {data && data.length > 0 && <span className="font-normal text-fg-subtle">· {formatBytes(total)}</span>}
-          </>
-        }
-        actions={
-          data && data.length > 0 ? (
-            <Button variant="danger" onClick={() => setConfirm({ kind: "empty" })}>
-              Empty Trash
-            </Button>
-          ) : null
-        }
+    <>
+      <PageBar
+        prefix="04"
+        title="Trash"
+        primary={hasItems ? <PrimaryAction tone="danger" onClick={() => setConfirm({ kind: "empty" })}>Empty Trash</PrimaryAction> : undefined}
       />
-      {isPending && <Loading />}
-      {isError && <ErrorState message={messageOf(error)} onRetry={() => void refetch()} />}
-      {data && data.length === 0 && (
-        <EmptyState icon={<Trash2 size={20} />} title="Trash is empty">
-          Items you move to Trash stay here until they are deleted automatically.
-        </EmptyState>
-      )}
-      {data && data.length > 0 && (
-        <ul className="m-0 flex list-none flex-col overflow-hidden rounded-xl border border-line bg-sunken p-0">
-          {data.map((item) => (
-            <TrashRow key={item.id} item={item} onDelete={() => setConfirm({ kind: "item", item })} />
-          ))}
-        </ul>
-      )}
+      <Page>
+        <PageHeader eyebrow="04 / Trash" title={hasItems ? <>Trash <span className="text-fg-subtle">· {formatBytes(total)}</span></> : "Trash"}>
+          {settings ? `Items stay here for ${settings.trashRetentionDays} days, then they are deleted automatically.` : "Items stay here until they are deleted automatically."}
+        </PageHeader>
+        {isPending && <Loading />}
+        {isError && <ErrorState message={messageOf(error)} onRetry={() => void refetch()} />}
+        {data && data.length === 0 && (
+          <EmptyState icon={<Trash2 size={24} />} title="Trash is empty">
+            Items you move to Trash stay here until they are deleted automatically.
+          </EmptyState>
+        )}
+        {hasItems && (
+          <ul className="m-0 flex animate-reveal list-none flex-col overflow-hidden rounded-card border border-line bg-surface p-0 [animation-delay:80ms]">
+            {data.map((item, index) => (
+              <TrashRow key={item.id} item={item} index={index} onDelete={() => setConfirm({ kind: "item", item })} />
+            ))}
+          </ul>
+        )}
+      </Page>
       <Dialog
         open={confirm.kind !== "none"}
         onClose={close}
@@ -76,37 +75,36 @@ export function TrashPage() {
           </>
         }
       >
-        <p className="m-0 text-sm text-fg-muted">This cannot be undone. The space is freed immediately.</p>
+        <p className="type-body m-0 text-fg-muted">This cannot be undone. The space is freed immediately.</p>
       </Dialog>
-    </div>
+    </>
   );
 }
 
-function TrashRow({ item, onDelete }: { item: TrashItem; onDelete: () => void }) {
+function TrashRow({ item, index, onDelete }: { item: TrashItem; index: number; onDelete: () => void }) {
   const restore = useRestore();
   const toast = useToast();
   return (
-    <li className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-line px-4 py-3.5 last:border-b-0 sm:px-5">
-      <EntryIcon entry={{ kind: item.kind, contentType: item.kind === "dir" ? undefined : guessType(item.name) }} />
+    <li style={stagger(index, 160)} className="flex animate-fade-in flex-wrap items-center gap-x-5 gap-y-3 border-b border-line px-6 py-5 last:border-b-0 max-sm:px-5">
+      <EntryIcon entry={{ kind: item.kind, contentType: item.kind === "dir" ? undefined : guessType(item.name) }} size={22} />
       <div className="flex min-w-0 flex-[1_1_220px] flex-col gap-1">
-        <span className="truncate text-sm">{item.name}</span>
-        <span className="truncate font-mono text-xs text-fg-subtle">
-          from {displayPath(parentPath(item.originalPath))} · {formatBytes(item.size)}
+        <span className="type-body truncate font-semibold">{item.name}</span>
+        <span className="type-small truncate text-fg-subtle">
+          From {displayPath(parentPath(item.originalPath))} · {formatBytes(item.size)}
         </span>
       </div>
-      <span className="font-mono text-xs text-fg-subtle" title={`Deleted ${formatDate(item.trashedAt)}`}>
-        deletes in {formatRemaining(item.purgeAt)}
+      <span title={`Deleted ${formatDate(item.trashedAt)}`}>
+        <Badge>Deletes in {formatRemaining(item.purgeAt)}</Badge>
       </span>
       <div className="flex gap-2">
         <Button
-          size="sm"
           icon={<RotateCcw size={14} aria-hidden />}
           busy={restore.isPending}
           onClick={() => restore.mutate(item.id, { onSuccess: (path) => toast.notify(`Restored to ${displayPath(path)}`), onError: (e) => toast.fail(messageOf(e)) })}
         >
           Restore
         </Button>
-        <Button variant="danger" size="sm" onClick={onDelete}>
+        <Button variant="danger" onClick={onDelete}>
           Delete
         </Button>
       </div>

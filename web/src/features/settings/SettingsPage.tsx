@@ -3,11 +3,13 @@ import { useNavigate } from "@tanstack/react-router";
 import { type FormEvent, type ReactNode, useState } from "react";
 import { messageOf, type Session, type Settings } from "@/api/client";
 import { meQuery, sessionsQuery, settingsQuery, storageQuery, useChangeCredentials, useLogout, useRevokeSession, useUpdateSettings } from "@/api/queries";
+import { PageBar, Page } from "@/layout/PageBar";
+import { cn } from "@/lib/cn";
 import { describeUserAgent, formatAgo, formatBytes } from "@/lib/format";
 import { Button } from "@/ui/Button";
 import { Dialog } from "@/ui/Dialog";
-import { ErrorState, Loading, PageHeader } from "@/ui/Feedback";
-import { Field, Select } from "@/ui/Field";
+import { Badge, ErrorState, Loading, PageHeader } from "@/ui/Feedback";
+import { control, Field, Select } from "@/ui/Field";
 import { useToast } from "@/ui/Toast";
 import { type FieldErrors, fieldErrors, passwordChangeSchema, quotaFromInput, quotaToInput, usernameChangeSchema } from "./credentials";
 
@@ -23,41 +25,56 @@ const ttlOptions = [
 
 export function SettingsPage() {
   const settings = useQuery(settingsQuery);
+  const jump = (id: string) => () => document.getElementById(`s-${id}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
   return (
-    <div className="flex w-full max-w-[880px] flex-col gap-7 px-4 pt-[max(env(safe-area-inset-top),24px)] pb-10 sm:px-7 sm:pt-8">
-      <PageHeader eyebrow="settings.conf" title="Settings" />
-      <AccountSection />
-      {settings.isPending && <Loading />}
-      {settings.isError && <ErrorState message={messageOf(settings.error)} onRetry={() => void settings.refetch()} />}
-      {settings.data && <PreferencesForm key={JSON.stringify(settings.data)} initial={settings.data} />}
-      <SessionsSection />
-    </div>
+    <>
+      <PageBar
+        prefix="05"
+        title="Settings"
+        actions={[
+          { label: "Account", onSelect: jump("account") },
+          { label: "Storage", onSelect: jump("storage") },
+          { label: "Links", onSelect: jump("links") },
+          { label: "Sessions", onSelect: jump("sessions") },
+        ]}
+      />
+      <Page width="narrow">
+        <PageHeader eyebrow="05 / settings.conf" title="Settings">
+          Manage your account, storage limits, link defaults and signed-in devices.
+        </PageHeader>
+        <AccountSection />
+        {settings.isPending && <Loading />}
+        {settings.isError && <ErrorState message={messageOf(settings.error)} onRetry={() => void settings.refetch()} />}
+        {settings.data && <PreferencesForm key={JSON.stringify(settings.data)} initial={settings.data} />}
+        <SessionsSection />
+      </Page>
+    </>
   );
 }
 
 function Section({ name, children }: { name: string; children: ReactNode }) {
   return (
-    <section aria-labelledby={`s-${name}`} className="flex flex-col gap-2.5">
-      <h2 id={`s-${name}`} className="label-caps m-0 font-normal normal-case">
-        [{name}]
+    <section aria-labelledby={`s-${name}`} className="flex animate-reveal scroll-mt-[76px] flex-col gap-4">
+      <h2 id={`s-${name}`} className="type-section m-0 scroll-mt-[76px] capitalize">
+        {name}
       </h2>
-      <div className="overflow-hidden rounded-xl border border-line bg-sunken">{children}</div>
+      <div className="overflow-hidden rounded-card border border-line bg-surface">{children}</div>
     </section>
   );
 }
 
 function Item({ title, hint, children, htmlFor }: { title: ReactNode; hint?: ReactNode; children?: ReactNode; htmlFor?: string }) {
   return (
-    <div className="flex flex-wrap items-center gap-x-6 gap-y-3 border-b border-line px-4 py-4 last:border-b-0 sm:px-5">
+    <div className="flex flex-wrap items-center gap-x-6 gap-y-3 border-b border-line px-6 py-5 last:border-b-0 max-sm:px-5">
       <div className="flex min-w-0 flex-[1_1_260px] flex-col gap-1">
         {htmlFor ? (
-          <label htmlFor={htmlFor} className="text-sm text-fg">
+          <label htmlFor={htmlFor} className="type-body text-fg">
             {title}
           </label>
         ) : (
-          <span className="text-sm text-fg">{title}</span>
+          <span className="type-body text-fg">{title}</span>
         )}
-        {hint && <span className="text-[13px] text-fg-subtle">{hint}</span>}
+        {hint && <span className="type-small text-fg-subtle">{hint}</span>}
       </div>
       {children}
     </div>
@@ -69,7 +86,7 @@ function AccountSection() {
   const [editing, setEditing] = useState<"username" | "password" | null>(null);
   return (
     <Section name="account">
-      <Item title="Username" hint={<span className="font-mono text-fg-muted">{me?.username}</span>}>
+      <Item title="Username" hint={<span className="text-fg-muted">{me?.username}</span>}>
         <Button onClick={() => setEditing("username")}>Change username</Button>
       </Item>
       <Item title="Password" hint={me ? `Changed ${formatAgo(me.passwordChangedAt)}. Other sessions sign out after a change.` : undefined}>
@@ -132,7 +149,7 @@ function CredentialsDialog({ mode, currentUsername, onClose }: { mode: "username
         )}
         <Field label="Current password" type="password" autoComplete="current-password" value={values.currentPassword} onChange={set("currentPassword")} error={errors.currentPassword} />
         {errors.form && (
-          <p role="alert" className="m-0 text-[13px] text-danger">
+          <p role="alert" className="type-small m-0 text-danger">
             {errors.form}
           </p>
         )}
@@ -179,9 +196,9 @@ function PreferencesForm({ initial }: { initial: Settings }) {
               value={quota}
               onChange={(e) => setQuota(e.target.value)}
               aria-invalid={quotaBytes === null || undefined}
-              className="h-10 w-28 rounded-lg border border-line-strong bg-canvas px-3 text-right font-mono text-[15px] text-fg outline-none placeholder:text-fg-subtle focus:border-fg-muted aria-invalid:border-danger sm:h-9 sm:text-sm"
+              className={cn(control, "type-small h-10 w-28 px-3.5 text-right tabular-nums max-sm:h-11 max-sm:text-[16px]")}
             />
-            <span className="font-mono text-[13px] text-fg-subtle">GB</span>
+            <span className="type-small text-fg-subtle">GB</span>
           </div>
         </Item>
         <Item htmlFor="retention" title="Keep deleted items" hint="Items in Trash are removed for good after this period.">
@@ -194,7 +211,8 @@ function PreferencesForm({ initial }: { initial: Settings }) {
         </Item>
       </Section>
       {dirty && (
-        <div className="sticky bottom-[calc(env(safe-area-inset-bottom)+72px)] z-10 flex animate-rise justify-end gap-2 rounded-xl border border-line-strong bg-surface/95 p-2 shadow-float backdrop-blur-xl md:bottom-4">
+        <div className="sticky bottom-[calc(env(safe-area-inset-bottom)+16px)] z-10 flex animate-rise items-center justify-end gap-2 rounded-card border border-line-strong bg-raised p-2 pl-4 shadow-float md:bottom-6">
+          <span className="mr-auto font-mono text-xs text-fg-muted">unsaved changes</span>
           <Button onClick={discard}>Discard</Button>
           <Button variant="primary" type="submit" busy={update.isPending} disabled={quotaBytes === null}>
             Save changes
@@ -227,11 +245,11 @@ function SessionItem({ session, onSignOutHere }: { session: Session; onSignOutHe
       title={
         <>
           {describeUserAgent(session.userAgent)}
-          {session.current && <span className="ml-2 rounded-full border border-line-strong px-2 py-0.5 font-mono text-[11px] text-fg-muted">this device</span>}
+          {session.current && <span className="ml-2 align-middle"><Badge tone="info">This device</Badge></span>}
         </>
       }
       hint={
-        <span className="font-mono">
+        <span className="tabular-nums">
           {session.ip || "unknown"} · {session.current ? "active now" : formatAgo(session.lastSeenAt)}
         </span>
       }

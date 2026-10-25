@@ -1,7 +1,6 @@
 import { X } from "lucide-react";
 import { type ReactNode, useEffect, useId, useRef } from "react";
 import { cn } from "@/lib/cn";
-import { IconButton } from "./Button";
 
 type DialogProps = {
   open: boolean;
@@ -39,28 +38,32 @@ export function Dialog({ open, onClose, title, eyebrow, description, children, f
       }}
       className={cn(
         "m-auto w-[calc(100%-32px)] border border-line-strong bg-surface p-0 text-fg shadow-dialog backdrop:animate-fade-in",
-        "max-sm:mb-0 max-sm:w-full max-sm:max-w-none max-sm:rounded-t-[20px] max-sm:rounded-b-none max-sm:border-b-0",
-        "rounded-[14px] open:animate-rise",
-        size === "sm" ? "max-w-[400px]" : "max-w-[480px]",
+        "rounded-sheet open:animate-rise",
+        "max-sm:mb-0 max-sm:w-full max-sm:max-w-none max-sm:rounded-b-none max-sm:border-x-0 max-sm:border-b-0 max-sm:open:animate-sheet",
+        size === "sm" ? "max-w-[440px]" : "max-w-[540px]",
       )}
     >
       {open && (
-        <div className="flex max-h-[85dvh] min-h-0 flex-col">
+        <div className="flex max-h-[88dvh] min-h-0 flex-col">
           <div aria-hidden="true" className="mx-auto mt-2 h-[5px] w-9 rounded-full bg-fg-faint sm:hidden" />
-          <header className="flex items-start gap-3 px-5 pt-5 max-sm:pt-3">
-            <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-              {eyebrow && <span className="label-caps">{eyebrow}</span>}
-              <h2 id={titleId} className="m-0 truncate text-[17px] font-semibold">
-                {title}
-              </h2>
-              {description && <div className="font-mono text-xs text-fg-subtle">{description}</div>}
-            </div>
-            <IconButton label="Close" size="sm" className="max-sm:-mt-1 max-sm:-mr-2 max-sm:size-11" onClick={onClose}>
-              <X size={16} strokeWidth={1.75} />
-            </IconButton>
+          <header className="relative flex flex-col gap-1.5 border-b border-line px-6 pt-6 pr-16 pb-5 max-sm:px-5 max-sm:pt-4">
+            {eyebrow && <span className="label-caps">{eyebrow}</span>}
+            <h2 id={titleId} className="type-title m-0 truncate">
+              {title}
+            </h2>
+            {description && <div className="type-small text-fg-subtle">{description}</div>}
+            <button
+              type="button"
+              aria-label="Close"
+              title="Close"
+              onClick={onClose}
+              className="absolute top-4 right-4 inline-flex size-9 cursor-pointer items-center justify-center rounded-control text-fg-muted transition-colors duration-200 ease-swift hover:bg-raised hover:text-fg max-sm:top-3 max-sm:right-3 max-sm:size-11"
+            >
+              <X size={16} strokeWidth={2.25} aria-hidden />
+            </button>
           </header>
-          {children && <div className="flex flex-col gap-4 overflow-y-auto px-5 py-5">{children}</div>}
-          {footer && <footer className="flex shrink-0 flex-wrap justify-end gap-2 border-t border-line px-5 pt-3.5 pb-[max(env(safe-area-inset-bottom),14px)] [&>button]:max-sm:min-h-11">{footer}</footer>}
+          {children && <div className="flex flex-col gap-5 overflow-y-auto px-6 py-6 max-sm:px-5">{children}</div>}
+          {footer && <footer className="flex shrink-0 flex-wrap justify-end gap-2.5 border-t border-line bg-sunken/60 px-6 pt-4 pb-[max(env(safe-area-inset-bottom),16px)] max-sm:px-5 max-sm:pb-[max(env(safe-area-inset-bottom),20px)] [&>button]:max-sm:min-h-11 [&>button]:max-sm:flex-1">{footer}</footer>}
         </div>
       )}
     </dialog>

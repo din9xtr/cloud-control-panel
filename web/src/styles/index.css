@@ -3,28 +3,54 @@
 @import "@fontsource-variable/fira-code";
 
 @theme {
-  --font-sans: "Inter Variable", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
-  --font-mono: "Fira Code Variable", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-sans: "Inter Variable", system-ui, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "Fira Code Variable", ui-monospace, Menlo, Consolas, monospace;
 
-  --color-canvas: #0d1117;
-  --color-surface: #161b22;
-  --color-raised: #1c2128;
-  --color-sunken: #11161d;
-  --color-selected: #131a23;
-  --color-line: #21262d;
-  --color-line-strong: #30363d;
-  --color-fg: #e6edf3;
-  --color-fg-muted: #a6adb8;
-  --color-fg-subtle: #7d8590;
-  --color-fg-faint: #484f58;
-  --color-danger: #f0716a;
-  --color-warning: #d29922;
+  --color-canvas: #07090c;
+  --color-sunken: #0d1015;
+  --color-surface: #12161c;
+  --color-raised: #1a1f27;
+  --color-elevated: #232a33;
+  --color-selected: #102340;
+  --color-line: #1e242c;
+  --color-line-strong: #2b333e;
+  --color-fg: #eef1f5;
+  --color-fg-secondary: #d3d9e1;
+  --color-fg-muted: #a2abb7;
+  --color-fg-subtle: #7b8593;
+  --color-fg-faint: #4e5763;
+  --color-accent: #3d7eff;
+  --color-accent-hover: #5590ff;
+  --color-accent-active: #2f6ae0;
+  --color-on-accent: #ffffff;
+  --color-link: #6aa5ff;
+  --color-danger: #ff5c5c;
+  --color-warning: #f5a524;
+  --color-success: #3fcf8e;
+  --color-orange: #ff8a3d;
+  --color-purple: #a98bff;
+  --color-pink: #f472b6;
+  --color-teal: #2dd4bf;
+  --color-bar: rgb(7 9 12 / 0.78);
 
-  --shadow-float: 0 16px 40px rgb(0 0 0 / 0.45);
-  --shadow-dialog: 0 24px 64px rgb(0 0 0 / 0.55);
+  --radius-control: 10px;
+  --radius-card: 14px;
+  --radius-sheet: 20px;
 
-  --animate-fade-in: fade-in 160ms ease-out;
-  --animate-rise: rise 200ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-swift: cubic-bezier(0.33, 0, 0.2, 1);
+  --ease-glide: cubic-bezier(0.16, 1, 0.3, 1);
+
+  --shadow-float: 0 1px 0 rgb(255 255 255 / 0.04) inset, 0 16px 40px rgb(0 0 0 / 0.55);
+  --shadow-dialog: 0 1px 0 rgb(255 255 255 / 0.05) inset, 0 28px 72px rgb(0 0 0 / 0.65);
+
+  --animate-fade-in: fade-in 200ms var(--ease-swift) both;
+  --animate-rise: rise 420ms var(--ease-glide) both;
+  --animate-reveal: reveal 560ms var(--ease-glide) both;
+  --animate-drop: drop 220ms var(--ease-swift) both;
+  --animate-sheet: sheet 420ms var(--ease-glide) both;
+  --animate-enter: enter 280ms var(--ease-glide) both;
+  --animate-grow: grow 800ms var(--ease-glide) both;
+  --animate-caret: caret 1.1s steps(1) infinite;
 
   @keyframes fade-in {
     from {
@@ -38,11 +64,68 @@
   @keyframes rise {
     from {
       opacity: 0;
-      transform: translateY(8px);
+      transform: translateY(12px);
     }
     to {
       opacity: 1;
-      transform: translateY(0);
+      transform: none;
+    }
+  }
+
+  @keyframes reveal {
+    from {
+      opacity: 0;
+      transform: translateY(16px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  @keyframes drop {
+    from {
+      opacity: 0;
+      transform: translateY(-6px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  @keyframes sheet {
+    from {
+      transform: translateY(100%);
+    }
+    to {
+      transform: none;
+    }
+  }
+
+  @keyframes enter {
+    from {
+      opacity: 0;
+      transform: translateX(-10px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  @keyframes caret {
+    50% {
+      opacity: 0;
+    }
+  }
+
+  @keyframes grow {
+    from {
+      transform: scaleX(0);
+    }
+    to {
+      transform: none;
     }
   }
 }
@@ -61,18 +144,21 @@
     background: var(--color-canvas);
     color: var(--color-fg);
     font-family: var(--font-sans);
-    font-size: 14px;
-    line-height: 1.45;
+    font-size: 16px;
+    line-height: 1.55;
+    letter-spacing: -0.006em;
     font-feature-settings: "cv11", "ss01";
+    font-synthesis: none;
     -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 
   ::selection {
-    background: rgb(166 173 184 / 0.3);
+    background: rgb(61 126 255 / 0.4);
   }
 
   :focus-visible {
-    outline: 2px solid var(--color-fg-muted);
+    outline: 2px solid var(--color-accent);
     outline-offset: 2px;
   }
 
@@ -82,15 +168,12 @@
   textarea {
     font: inherit;
     color: inherit;
-  }
-
-  input[type="checkbox"] {
-    accent-color: var(--color-fg);
+    letter-spacing: inherit;
   }
 
   dialog::backdrop {
-    background: rgb(1 4 9 / 0.72);
-    backdrop-filter: blur(6px);
+    background: rgb(3 5 8 / 0.7);
+    backdrop-filter: blur(12px);
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -98,17 +181,130 @@
     *::before,
     *::after {
       animation-duration: 1ms !important;
+      animation-delay: 0ms !important;
       transition-duration: 1ms !important;
+      transition-delay: 0ms !important;
     }
   }
+}
+
+@utility type-display {
+  font-size: 46px;
+  line-height: 1.06;
+  font-weight: 650;
+  letter-spacing: -0.028em;
+  @media (width < 48rem) {
+    font-size: 32px;
+    line-height: 1.12;
+    letter-spacing: -0.022em;
+  }
+}
+
+@utility type-page {
+  font-size: 38px;
+  line-height: 1.1;
+  font-weight: 650;
+  letter-spacing: -0.024em;
+  @media (width < 48rem) {
+    font-size: 28px;
+    line-height: 1.15;
+    letter-spacing: -0.018em;
+  }
+}
+
+@utility type-section {
+  font-size: 24px;
+  line-height: 1.25;
+  font-weight: 620;
+  letter-spacing: -0.016em;
+  @media (width < 48rem) {
+    font-size: 21px;
+  }
+}
+
+@utility type-title {
+  font-size: 18px;
+  line-height: 1.33;
+  font-weight: 620;
+  letter-spacing: -0.012em;
+}
+
+@utility type-body {
+  font-size: 16px;
+  line-height: 1.55;
+  letter-spacing: -0.006em;
+}
+
+@utility type-small {
+  font-size: 14px;
+  line-height: 1.45;
+  letter-spacing: -0.003em;
+}
+
+@utility type-micro {
+  font-size: 12px;
+  line-height: 1.4;
+  letter-spacing: 0;
 }
 
 @utility label-caps {
   font-family: var(--font-mono);
   font-size: 11px;
+  line-height: 1.45;
+  font-weight: 400;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--color-fg-subtle);
+}
+
+@utility glass {
+  background: var(--color-bar);
+  backdrop-filter: saturate(160%) blur(16px);
+  -webkit-backdrop-filter: saturate(160%) blur(16px);
+}
+
+@utility card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-card);
+}
+
+@utility check {
+  appearance: none;
+  position: relative;
+  flex-shrink: 0;
+  margin: 0;
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+  border: 1.5px solid var(--color-fg-faint);
+  background: transparent;
+  cursor: pointer;
+  transition:
+    background-color 180ms var(--ease-swift),
+    border-color 180ms var(--ease-swift);
+  &::after {
+    content: "";
+    position: absolute;
+    left: 5px;
+    top: 1.5px;
+    width: 5px;
+    height: 10px;
+    border: solid var(--color-on-accent);
+    border-width: 0 2px 2px 0;
+    transform: rotate(45deg) scale(0);
+    transition: transform 180ms var(--ease-glide);
+  }
+  &:checked {
+    background: var(--color-accent);
+    border-color: var(--color-accent);
+  }
+  &:checked::after {
+    transform: rotate(45deg) scale(1);
+  }
+  &:hover:not(:checked) {
+    border-color: var(--color-fg-muted);
+  }
 }
 
 @utility safe-bottom {

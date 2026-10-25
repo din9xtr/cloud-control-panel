@@ -16,13 +16,12 @@ export function previewKind(entry: Pick<Entry, "kind" | "contentType">): Preview
 
 export function EntryIcon({ entry, size = 18 }: { entry: Pick<Entry, "kind" | "contentType">; size?: number }) {
   const props = { size, strokeWidth: 1.6, "aria-hidden": true } as const;
-  if (entry.kind === "dir") return <Folder {...props} className="text-fg-muted" />;
+  if (entry.kind === "dir") return <Folder {...props} fill="currentColor" fillOpacity={0.24} className="text-link" />;
   const type = entry.contentType ?? "";
-  const muted = "text-fg-subtle";
-  if (type.startsWith("image/")) return <Image {...props} className={muted} />;
-  if (type.startsWith("video/")) return <FileVideo {...props} className={muted} />;
-  if (type.startsWith("audio/")) return <FileAudio {...props} className={muted} />;
-  if (/zip|x-7z|zstd|gzip|tar|rar/.test(type)) return <FileArchive {...props} className={muted} />;
-  if (type.startsWith("text/") || type.includes("pdf") || type.includes("epub")) return <FileText {...props} className={muted} />;
-  return <File {...props} className={muted} />;
+  if (type.startsWith("image/")) return <Image {...props} className="text-orange" />;
+  if (type.startsWith("video/")) return <FileVideo {...props} className="text-purple" />;
+  if (type.startsWith("audio/")) return <FileAudio {...props} className="text-pink" />;
+  if (/zip|x-7z|zstd|gzip|tar|rar/.test(type)) return <FileArchive {...props} className="text-teal" />;
+  if (type.startsWith("text/") || type.includes("pdf") || type.includes("epub")) return <FileText {...props} className="text-fg-secondary" />;
+  return <File {...props} className="text-fg-subtle" />;
 }

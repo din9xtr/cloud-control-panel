@@ -15,11 +15,11 @@ import (
 var _tokenPattern = regexp.MustCompile(`^[A-Za-z0-9_-]{22}$`)
 
 const missingLinkStyle = `
-body{margin:0;min-height:100vh;display:grid;place-items:center;background:#0D1117;color:#E6EDF3;
-font:15px/1.5 -apple-system,BlinkMacSystemFont,Inter,system-ui,sans-serif}
-main{padding:24px;text-align:center;display:grid;gap:8px}
-samp{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:#7D8590;font-size:13px}
-h1{margin:0;font-size:20px;font-weight:600}p{margin:0;color:#A6ADB8}
+body{margin:0;min-height:100vh;display:grid;place-items:center;background:#07090C;color:#EEF1F5;
+font:16px/1.55 Inter,system-ui,"Segoe UI",Roboto,sans-serif}
+main{padding:24px;text-align:center;display:grid;gap:10px}
+samp{font-family:ui-monospace,Menlo,Consolas,monospace;color:#7B8593;font-size:13px}
+h1{margin:0;font-size:24px;line-height:1.25;font-weight:620;letter-spacing:-.016em}p{margin:0;color:#A2ABB7}
 `
 
 var (

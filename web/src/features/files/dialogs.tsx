@@ -174,22 +174,22 @@ export function MoveDialog({ open, onClose, paths, start }: NameDialogProps & { 
         </>
       }
     >
-      <div className="flex flex-col overflow-hidden rounded-lg border border-line bg-canvas">
-        <div className="flex h-11 items-center gap-1 border-b border-line px-1.5">
+      <div className="flex flex-col overflow-hidden rounded-control border border-line bg-sunken">
+        <div className="flex h-12 items-center gap-1 border-b border-line px-1.5">
           <button
             type="button"
             disabled={!dir}
             onClick={() => setDir(parentPath(dir))}
-            className="inline-flex size-9 cursor-pointer items-center justify-center rounded-md text-fg-muted hover:bg-raised disabled:cursor-default disabled:opacity-40"
+            className="inline-flex size-9 cursor-pointer items-center justify-center rounded-lg text-link transition-colors hover:bg-raised disabled:cursor-default disabled:text-fg-faint"
             aria-label="Up one level"
           >
             <ChevronLeft size={16} aria-hidden />
           </button>
-          <span className="truncate font-mono text-[13px] text-fg-muted">{displayPath(dir)}</span>
+          <span className="type-small truncate font-semibold text-fg-secondary">{displayPath(dir)}</span>
         </div>
-        <ul className="m-0 max-h-64 list-none overflow-y-auto p-1" aria-label="Folders">
+        <ul className="m-0 max-h-72 list-none overflow-y-auto p-1.5" aria-label="Folders">
           {isPending && <Loading />}
-          {!isPending && folders.length === 0 && <li className="px-3 py-6 text-center text-[13px] text-fg-subtle">No folders here</li>}
+          {!isPending && folders.length === 0 && <li className="type-small px-3 py-8 text-center text-fg-subtle">No folders here</li>}
           {folders.map((f) => {
             const disabled = paths.includes(f.path);
             return (
@@ -198,20 +198,20 @@ export function MoveDialog({ open, onClose, paths, start }: NameDialogProps & { 
                   type="button"
                   disabled={disabled}
                   onClick={() => setDir(f.path)}
-                  className="flex min-h-10 w-full cursor-pointer items-center gap-3 rounded-md px-2.5 text-left text-sm hover:bg-raised disabled:cursor-not-allowed disabled:opacity-40"
+                  className="type-body flex min-h-11 w-full cursor-pointer items-center gap-3 rounded-lg px-3 text-left transition-colors duration-200 hover:bg-raised disabled:cursor-not-allowed disabled:opacity-40"
                 >
-                  <Folder size={16} className="text-fg-muted" aria-hidden />
+                  <Folder size={18} fill="currentColor" fillOpacity={0.24} className="text-link" aria-hidden />
                   <span className="flex-1 truncate">{f.name}</span>
-                  <ChevronRight size={14} className="text-fg-faint" aria-hidden />
+                  <ChevronRight size={14} strokeWidth={2.25} className="text-fg-faint" aria-hidden />
                 </button>
               </li>
             );
           })}
         </ul>
       </div>
-      {blocked && <p className="m-0 text-[13px] text-fg-subtle">A folder cannot be moved into itself.</p>}
+      {blocked && <p className="type-small m-0 text-fg-subtle">A folder cannot be moved into itself.</p>}
       {move.isError && (
-        <p role="alert" className="m-0 text-[13px] text-danger">
+        <p role="alert" className="type-small m-0 text-danger">
           {messageOf(move.error)}
         </p>
       )}
