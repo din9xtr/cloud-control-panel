@@ -28,21 +28,27 @@ Upload large files with resume, share folders, collect files through upload-only
 links, recover deleted items and keep track of disk usage. One Go binary, one
 container, SQLite and your own disk.
 
+<p align="center">
+  <img src="docs/screenshots/files.png" alt="Files with a translucent top bar and page toolbar" />
+</p>
+
 <table>
   <tr>
     <td width="50%"><img src="docs/screenshots/share.png" alt="Temporary link dialog" /></td>
     <td width="50%"><img src="docs/screenshots/storage.png" alt="Storage overview" /></td>
   </tr>
   <tr>
-    <td><img src="docs/screenshots/settings-v0.2.jpg" alt="Settings in Cloud v0.2.0" /></td>
+    <td><img src="docs/screenshots/settings.png" alt="Settings" /></td>
     <td><img src="docs/screenshots/setup.png" alt="First start" /></td>
   </tr>
 </table>
 
 <p align="center">
-  <img src="docs/screenshots/mobile-files.png" alt="Files on a phone" width="260" />
+  <img src="docs/screenshots/mobile-files.png" alt="Files on a phone" width="240" />
   &nbsp;&nbsp;
-  <img src="docs/screenshots/mobile-storage.png" alt="Storage on a phone" width="260" />
+  <img src="docs/screenshots/mobile-menu.png" alt="Menu on a phone" width="240" />
+  &nbsp;&nbsp;
+  <img src="docs/screenshots/mobile-storage.png" alt="Storage on a phone" width="240" />
 </p>
 
 ### `02 / QUICK START`
@@ -99,6 +105,7 @@ comes from the same contract as the frontend types, CLI commands and MCP tools.
 - [Architecture](docs/architecture.md): packages and the HTTP contract
 - [Security](docs/security.md): how files, sessions and the server are protected
 - [Development](docs/development.md): running from source and the checks every change must pass
+- [Web interface design](docs/design.md): tokens, typography, layout and motion of the web UI
 
 ---
 
