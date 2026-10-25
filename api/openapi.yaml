@@ -544,7 +544,7 @@ paths:
     post:
       tags: [uploads]
       operationId: tusCreate
-      description: Creates a resumable upload (tus creation extension).
+      description: Creates a resumable upload (tus creation extension). Completed upload receipts remain available until Upload-Expires; HEAD confirms completion after a lost response or process restart.
       parameters:
         - $ref: '#/components/parameters/TusResumable'
         - name: Upload-Length
@@ -593,7 +593,7 @@ paths:
         - $ref: '#/components/parameters/TusResumable'
       responses:
         '200':
-          description: Current offset.
+          description: Durable offset. A full offset confirms publication; completed receipts expire at Upload-Expires.
           headers:
             Upload-Offset:
               $ref: '#/components/headers/UploadOffset'
@@ -606,6 +606,14 @@ paths:
           description: Unauthenticated.
         '404':
           description: Unknown upload.
+        '409':
+          description: Publication destination conflicts.
+        '423':
+          description: Upload is busy.
+        '500':
+          description: Publication could not be completed.
+        '507':
+          description: Insufficient storage or quota.
     patch:
       tags: [uploads]
       operationId: tusWrite
@@ -645,6 +653,8 @@ paths:
         '415':
           $ref: '#/components/responses/Error'
         '423':
+          $ref: '#/components/responses/Error'
+        '507':
           $ref: '#/components/responses/Error'
     delete:
       tags: [uploads]
@@ -758,7 +768,7 @@ paths:
       tags: [uploads]
       security: []
       operationId: publicTusCreate
-      description: Creates a resumable upload (tus creation extension).
+      description: Creates a resumable upload (tus creation extension). Completed upload receipts remain available until Upload-Expires; HEAD confirms completion after a lost response or process restart.
       parameters:
         - $ref: '#/components/parameters/TusResumable'
         - name: Upload-Length
@@ -813,7 +823,7 @@ paths:
         default:
           $ref: '#/components/responses/Error'
         '200':
-          description: Current offset.
+          description: Durable offset. A full offset confirms publication; completed receipts expire at Upload-Expires.
           headers:
             Upload-Offset:
               $ref: '#/components/headers/UploadOffset'

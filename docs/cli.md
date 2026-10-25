@@ -127,9 +127,10 @@ value even when its API type is boolean, for example `--inline true`.
 permanently. Those explicit commands execute immediately, with the same rights
 and retention rules as the web interface.
 
-Downloads stream to a new local file and refuse to overwrite an existing one.
-An incomplete destination is removed if the transfer fails normally. A force-killed
-process may leave a partial file; remove it or choose a new output name before retrying.
+Downloads stream to a private temporary file beside the destination, sync it, and
+publish the final name only after success. Existing files are never overwritten.
+A normal failure removes the temporary file. A force-killed process can leave a
+`.cloud-download-*.part` temporary file, which may be removed before retrying.
 Use `--output -` to stream file or ZIP bytes to stdout; the JSON result then goes
 to stderr:
 
@@ -138,6 +139,11 @@ to stderr:
 ```
 
 ## Resumable uploads
+
+Acknowledged offsets follow a staging-file sync. Completed upload receipts remain
+available until `Upload-Expires`, so resuming after a lost final reply confirms
+completion without publishing another copy. This covers process restarts, not a
+guarantee against filesystem corruption or sudden power loss.
 
 `upload` / `uploadFile` streams a regular local file in chunks of up to 4 MiB. It
 prints the upload ID before sending chunks. After an interruption, pass that ID:

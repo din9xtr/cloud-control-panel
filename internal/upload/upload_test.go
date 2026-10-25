@@ -47,6 +47,24 @@ func (m *memoryStore) UpdateOffset(_ context.Context, id string, offset int64, e
 	return nil
 }
 
+func (m *memoryStore) ReadyUpload(_ context.Context, id string, expiresAt time.Time) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	u := m.uploads[id]
+	u.Offset, u.Ready, u.ExpiresAt = u.Size, true, expiresAt
+	m.uploads[id] = u
+	return nil
+}
+
+func (m *memoryStore) CompleteUpload(_ context.Context, id string, result files.Path) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	u := m.uploads[id]
+	u.Result = result
+	m.uploads[id] = u
+	return nil
+}
+
 func (m *memoryStore) DeleteUpload(_ context.Context, id string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -62,7 +80,7 @@ func (m *memoryStore) ReservedBytes(_ context.Context, userID int64) (int64, err
 	defer m.mu.Unlock()
 	var total int64
 	for _, u := range m.uploads {
-		if u.UserID == userID {
+		if u.UserID == userID && !u.Done() {
 			total += u.Size
 		}
 	}
@@ -74,7 +92,7 @@ func (m *memoryStore) ActiveUploads(_ context.Context, userID int64) (int, error
 	defer m.mu.Unlock()
 	n := 0
 	for _, u := range m.uploads {
-		if u.UserID == userID {
+		if u.UserID == userID && !u.Done() {
 			n++
 		}
 	}
@@ -182,8 +200,8 @@ func TestResumableUploadPublishesFile(t *testing.T) {
 	if err != nil || !bytes.Equal(got, payload) {
 		t.Fatalf("published content mismatch: %v", err)
 	}
-	if _, err := e.svc.Get(ctx, 1, u.ID); !errors.Is(err, ErrNotFound) {
-		t.Fatalf("finished upload still tracked: %v", err)
+	if receipt, err := e.svc.Get(ctx, 1, u.ID); err != nil || !receipt.Done() {
+		t.Fatalf("missing completion receipt: %+v, %v", receipt, err)
 	}
 }
 
@@ -264,5 +282,181 @@ func TestPurgeExpiredRemovesStaging(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(e.dir, ".system", "uploads", "1", u.ID+".part")); !os.IsNotExist(err) {
 		t.Fatalf("staging file left behind: %v", err)
+	}
+}
+
+func TestAcknowledgedPrefixCannotBeRecreatedWithZeroes(t *testing.T) {
+	e := newEnv(t, 0)
+	ctx := context.Background()
+	u, err := e.svc.Create(ctx, 1, CreateInput{Size: 6, Name: "notes.txt"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.svc.Write(ctx, 1, u.ID, 0, strings.NewReader("abc")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Truncate(filepath.Join(e.dir, ".system", "uploads", "1", u.ID+".part"), 1); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.svc.Write(ctx, 1, u.ID, 3, strings.NewReader("def")); err == nil {
+		t.Fatal("published a file with a missing acknowledged prefix")
+	}
+	if _, err := os.Stat(filepath.Join(e.dir, "users", "1", "notes.txt")); !os.IsNotExist(err) {
+		t.Fatalf("corrupt file published: %v", err)
+	}
+}
+
+func TestRejectedFinalBodyCanBeRetried(t *testing.T) {
+	for _, body := range []io.Reader{strings.NewReader("abcdextra"), &failingReader{data: []byte("abcd")}} {
+		e := newEnv(t, 0)
+		ctx := context.Background()
+		u, err := e.svc.Create(ctx, 1, CreateInput{Size: 4, Name: "notes.txt"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := e.svc.Write(ctx, 1, u.ID, 0, body); err == nil {
+			t.Fatal("accepted unvalidated final body")
+		}
+		u, err = e.svc.Get(ctx, 1, u.ID)
+		if err != nil || u.Offset != 0 {
+			t.Fatalf("rejected final body advanced offset: %+v, %v", u, err)
+		}
+		if _, err := e.svc.Write(ctx, 1, u.ID, 0, strings.NewReader("abcd")); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+type completionFailure struct {
+	Store
+	fail bool
+}
+
+func (s *completionFailure) CompleteUpload(ctx context.Context, id string, result files.Path) error {
+	if s.fail {
+		return errors.New("injected completion failure")
+	}
+	return s.Store.CompleteUpload(ctx, id, result)
+}
+
+func restartService(s *Service) *Service {
+	return NewService(Config{Store: s.store, Staging: s.staging, Library: s.library, Clock: s.clock, TTL: s.ttl})
+}
+
+func TestPublicationRecoversAfterCompletionFailureAndRestart(t *testing.T) {
+	e := newEnv(t, 100)
+	ctx := context.Background()
+	store := &completionFailure{Store: e.store, fail: true}
+	e.svc.store = store
+	u, err := e.svc.Create(ctx, 1, CreateInput{Size: 4, Name: "notes.txt"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.svc.Write(ctx, 1, u.ID, 0, strings.NewReader("abcd")); err == nil {
+		t.Fatal("expected completion failure")
+	}
+	store.fail = false
+	e.svc = restartService(e.svc)
+	receipt, err := e.svc.Status(ctx, 1, u.ID)
+	if err != nil || !receipt.Done() || receipt.Offset != 4 {
+		t.Fatalf("recover: %+v, %v", receipt, err)
+	}
+	entries, err := os.ReadDir(filepath.Join(e.dir, "users", "1"))
+	if err != nil || len(entries) != 1 || entries[0].Name() != "notes.txt" {
+		t.Fatalf("duplicate publication: %v, %v", entries, err)
+	}
+	if n, err := e.svc.Reserved(ctx, 1); err != nil || n != 0 {
+		t.Fatalf("completed reservation = %d, %v", n, err)
+	}
+	if err := e.svc.Terminate(ctx, 1, u.ID); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(filepath.Join(e.dir, "users", "1", "notes.txt"))
+	if err != nil || string(data) != "abcd" {
+		t.Fatalf("receipt deletion changed file: %q, %v", data, err)
+	}
+}
+
+func TestConcurrentQuotaReservations(t *testing.T) {
+	e := newEnv(t, 100)
+	var wg sync.WaitGroup
+	results := make(chan error, 20)
+	for range 20 {
+		wg.Go(func() {
+			_, err := e.svc.Create(context.Background(), 1, CreateInput{Size: 30, Name: "notes.txt"})
+			results <- err
+		})
+	}
+	wg.Wait()
+	close(results)
+	accepted := 0
+	for err := range results {
+		if err == nil {
+			accepted++
+		} else if !errors.Is(err, files.ErrQuotaExceeded) {
+			t.Fatal(err)
+		}
+	}
+	if accepted != 3 {
+		t.Fatalf("accepted %d uploads beyond quota", accepted)
+	}
+}
+
+type staleExpiry struct {
+	Store
+	extend func()
+}
+
+func (s staleExpiry) ExpiredUploads(ctx context.Context, now time.Time) ([]Upload, error) {
+	result, err := s.Store.ExpiredUploads(ctx, now)
+	s.extend()
+	return result, err
+}
+
+func TestPurgeRechecksRefreshedExpiry(t *testing.T) {
+	e := newEnv(t, 0)
+	ctx := context.Background()
+	u, err := e.svc.Create(ctx, 1, CreateInput{Size: 4, Name: "notes.txt"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	e.now = e.now.Add(25 * time.Hour)
+	e.svc.store = staleExpiry{Store: e.store, extend: func() { _ = e.store.UpdateOffset(ctx, u.ID, 0, e.now.Add(time.Hour)) }}
+	if n, err := e.svc.PurgeExpired(ctx); n != 0 || err != nil {
+		t.Fatalf("purged refreshed upload: %d, %v", n, err)
+	}
+	if _, err := e.svc.Get(ctx, 1, u.ID); err != nil {
+		t.Fatal(err)
+	}
+}
+
+type readonlyStaging struct {
+	Staging
+	dir string
+}
+
+func (s readonlyStaging) OpenStaging(userID int64, id string) (*os.File, error) {
+	return os.Open(filepath.Join(s.dir, ".system", "uploads", strconv.FormatInt(userID, 10), id+".part"))
+}
+
+func TestFailedStagingWriteKeepsAcknowledgedOffset(t *testing.T) {
+	e := newEnv(t, 0)
+	ctx := context.Background()
+	u, err := e.svc.Create(ctx, 1, CreateInput{Size: 4, Name: "notes.txt"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	staging := e.svc.staging
+	e.svc.staging = readonlyStaging{Staging: staging, dir: e.dir}
+	if _, err := e.svc.Write(ctx, 1, u.ID, 0, strings.NewReader("abcd")); err == nil {
+		t.Fatal("expected staging failure")
+	}
+	u, err = e.svc.Get(ctx, 1, u.ID)
+	if err != nil || u.Offset != 0 {
+		t.Fatalf("acknowledged failed write: %+v, %v", u, err)
+	}
+	e.svc.staging = staging
+	if _, err := e.svc.Write(ctx, 1, u.ID, 0, strings.NewReader("abcd")); err != nil {
+		t.Fatal(err)
 	}
 }

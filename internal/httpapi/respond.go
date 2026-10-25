@@ -9,6 +9,7 @@ import (
 	"mime"
 	"net/http"
 	"strconv"
+	"syscall"
 
 	"github.com/din9xtr/cloud-control-panel/internal/auth"
 	"github.com/din9xtr/cloud-control-panel/internal/files"
@@ -87,6 +88,9 @@ var _errorMappings = []mapping{
 }
 
 func classify(err error) *apiError {
+	if errors.Is(err, syscall.ENOSPC) || errors.Is(err, syscall.EDQUOT) {
+		return &apiError{status: http.StatusInsufficientStorage, code: "disk_full", message: files.ErrDiskFull.Error()}
+	}
 	var api *apiError
 	if errors.As(err, &api) {
 		return api

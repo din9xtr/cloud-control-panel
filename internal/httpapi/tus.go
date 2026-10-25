@@ -88,7 +88,7 @@ func (s *server) tusStatus(w http.ResponseWriter, r *http.Request) {
 	if !s.tusPreflight(w, r) {
 		return
 	}
-	u, err := s.uploads.Get(r.Context(), principalFrom(r.Context()).UserID, r.PathValue("id"))
+	u, err := s.uploads.Status(r.Context(), principalFrom(r.Context()).UserID, r.PathValue("id"))
 	if err != nil {
 		if api := classify(err); api != nil {
 			w.WriteHeader(api.status)

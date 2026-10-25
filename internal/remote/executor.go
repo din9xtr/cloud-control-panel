@@ -2,9 +2,11 @@ package remote
 
 import (
 	"context"
+	"crypto/rand"
 	"errors"
 	"io"
 	"os"
+	"path/filepath"
 )
 
 type Executor struct {
@@ -40,25 +42,43 @@ func (e *Executor) Execute(ctx context.Context, op Operation, args map[string]an
 	if e.Restricted && e.Root == nil {
 		return Result{}, errors.New("file transfers require --transfer-dir")
 	}
+	temp := filepath.Join(filepath.Dir(name), ".cloud-download-"+rand.Text()+".part")
 	var f *os.File
 	var err error
 	if e.Root != nil {
-		f, err = e.Root.OpenFile(name, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
+		f, err = e.Root.OpenFile(temp, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
 	} else {
-		f, err = os.OpenFile(name, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
+		f, err = os.OpenFile(temp, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
 	}
 	if err != nil {
 		return Result{}, errors.New("cannot create destination: choose a new file inside the allowed directory")
 	}
-	result, callErr := e.Client.Call(ctx, op, args, f)
-	closeErr := f.Close()
-	if err := errors.Join(callErr, closeErr); err != nil {
+	defer func() {
 		if e.Root != nil {
-			_ = e.Root.Remove(name)
+			_ = e.Root.Remove(temp)
 		} else {
-			_ = os.Remove(name)
+			_ = os.Remove(temp)
 		}
+	}()
+	result, callErr := e.Client.Call(ctx, op, args, f)
+	syncErr := f.Sync()
+	closeErr := f.Close()
+	if callErr != nil {
+		return Result{}, callErr
+	}
+	if syncErr != nil || closeErr != nil {
+		return Result{}, errors.New("cannot save completed download")
+	}
+	if err := ctx.Err(); err != nil {
 		return Result{}, err
+	}
+	if e.Root != nil {
+		err = e.Root.Link(temp, name)
+	} else {
+		err = os.Link(temp, name)
+	}
+	if err != nil {
+		return Result{}, errors.New("cannot publish download: choose a new file inside the allowed directory")
 	}
 	return result, nil
 }

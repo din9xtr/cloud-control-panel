@@ -272,3 +272,60 @@ func TestMigrationsSeedDefaultSettingsWithoutOverwriting(t *testing.T) {
 		t.Fatalf("saved quota overwritten: %v", values)
 	}
 }
+
+func TestUploadReceiptSurvivesDatabaseReopen(t *testing.T) {
+	ctx := context.Background()
+	path := filepath.Join(t.TempDir(), "cloud.db")
+	db, err := Open(ctx, path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	user, err := NewUsers(db).CreateUser(ctx, auth.User{Username: "gardener", PasswordHash: "h", CreatedAt: time.Now(), PasswordChangedAt: time.Now()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	store := NewUploads(db)
+	now := time.Now().UTC().Truncate(time.Second)
+	u := upload.Upload{ID: "receipt", UserID: user.ID, Size: 4, Name: "notes.txt", CreatedAt: now, ExpiresAt: now.Add(time.Hour)}
+	if err := store.CreateUpload(ctx, u); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.ReadyUpload(ctx, u.ID, u.ExpiresAt); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+	db, err = Open(ctx, path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	store = NewUploads(db)
+	ready, err := store.Upload(ctx, user.ID, u.ID)
+	if err != nil || !ready.Ready || ready.Done() || ready.Offset != 4 {
+		t.Fatalf("ready after reopen: %+v, %v", ready, err)
+	}
+	result, _ := files.ParsePath("notes.txt")
+	if err := store.CompleteUpload(ctx, u.ID, result); err != nil {
+		t.Fatal(err)
+	}
+	if reserved, err := store.ReservedBytes(ctx, user.ID); err != nil || reserved != 0 {
+		t.Fatalf("reserved: %d, %v", reserved, err)
+	}
+	if active, err := store.ActiveUploads(ctx, user.ID); err != nil || active != 0 {
+		t.Fatalf("active: %d, %v", active, err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+	db, err = Open(ctx, path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	receipt, err := NewUploads(db).Upload(ctx, user.ID, u.ID)
+	if err != nil || !receipt.Done() || receipt.Result != result {
+		t.Fatalf("receipt after reopen: %+v, %v", receipt, err)
+	}
+}

@@ -203,11 +203,11 @@ func NewUploads(db *sql.DB) *Uploads {
 	return &Uploads{db: db}
 }
 
-const uploadColumns = `id, user_id, size, received, dir, name, created_at, expires_at, share_id`
+const uploadColumns = `id, user_id, size, received, dir, name, created_at, expires_at, share_id, ready, result`
 
 func (s *Uploads) CreateUpload(ctx context.Context, u upload.Upload) error {
-	_, err := s.db.ExecContext(ctx, `INSERT INTO uploads (`+uploadColumns+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		u.ID, u.UserID, u.Size, u.Offset, u.Dir.String(), u.Name, unix(u.CreatedAt), unix(u.ExpiresAt), u.ShareID)
+	_, err := s.db.ExecContext(ctx, `INSERT INTO uploads (`+uploadColumns+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		u.ID, u.UserID, u.Size, u.Offset, u.Dir.String(), u.Name, unix(u.CreatedAt), unix(u.ExpiresAt), u.ShareID, u.Ready, u.Result.String())
 	return err
 }
 
@@ -227,6 +227,22 @@ func (s *Uploads) UpdateOffset(ctx context.Context, id string, offset int64, exp
 	return expectOne(res, upload.ErrNotFound)
 }
 
+func (s *Uploads) ReadyUpload(ctx context.Context, id string, expiresAt time.Time) error {
+	res, err := s.db.ExecContext(ctx, `UPDATE uploads SET received = size, ready = 1, expires_at = ? WHERE id = ?`, unix(expiresAt), id)
+	if err != nil {
+		return err
+	}
+	return expectOne(res, upload.ErrNotFound)
+}
+
+func (s *Uploads) CompleteUpload(ctx context.Context, id string, result files.Path) error {
+	res, err := s.db.ExecContext(ctx, `UPDATE uploads SET result = ? WHERE id = ? AND ready = 1`, result.String(), id)
+	if err != nil {
+		return err
+	}
+	return expectOne(res, upload.ErrNotFound)
+}
+
 func (s *Uploads) DeleteUpload(ctx context.Context, id string) error {
 	res, err := s.db.ExecContext(ctx, `DELETE FROM uploads WHERE id = ?`, id)
 	if err != nil {
@@ -237,13 +253,13 @@ func (s *Uploads) DeleteUpload(ctx context.Context, id string) error {
 
 func (s *Uploads) ReservedBytes(ctx context.Context, userID int64) (int64, error) {
 	var total int64
-	err := s.db.QueryRowContext(ctx, `SELECT COALESCE(SUM(size), 0) FROM uploads WHERE user_id = ?`, userID).Scan(&total)
+	err := s.db.QueryRowContext(ctx, `SELECT COALESCE(SUM(size), 0) FROM uploads WHERE user_id = ? AND result = ''`, userID).Scan(&total)
 	return total, err
 }
 
 func (s *Uploads) ActiveUploads(ctx context.Context, userID int64) (int, error) {
 	var n int
-	err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM uploads WHERE user_id = ?`, userID).Scan(&n)
+	err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM uploads WHERE user_id = ? AND result = ''`, userID).Scan(&n)
 	return n, err
 }
 
@@ -267,13 +283,17 @@ func (s *Uploads) ExpiredUploads(ctx context.Context, now time.Time) ([]upload.U
 func scanUpload(row scanner) (upload.Upload, error) {
 	var (
 		u                    upload.Upload
-		rawDir               string
+		rawDir, rawResult    string
 		createdAt, expiresAt int64
 	)
-	if err := row.Scan(&u.ID, &u.UserID, &u.Size, &u.Offset, &rawDir, &u.Name, &createdAt, &expiresAt, &u.ShareID); err != nil {
+	if err := row.Scan(&u.ID, &u.UserID, &u.Size, &u.Offset, &rawDir, &u.Name, &createdAt, &expiresAt, &u.ShareID, &u.Ready, &rawResult); err != nil {
 		return upload.Upload{}, err
 	}
 	dir, err := files.ParsePath(rawDir)
+	if err != nil {
+		return upload.Upload{}, err
+	}
+	u.Result, err = files.ParsePath(rawResult)
 	if err != nil {
 		return upload.Upload{}, err
 	}

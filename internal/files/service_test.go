@@ -304,11 +304,11 @@ func TestPublishPicksUniqueName(t *testing.T) {
 		}
 		staged.Close()
 	}
-	first, err := f.svc.Publish(ctx, testUser, "u1", mustPath(t, "in"), "report.pdf")
+	first, err := f.svc.Publish(ctx, testUser, "u1", Publication{Dir: mustPath(t, "in"), Name: "report.pdf"})
 	if err != nil || first.String() != "in/report (1).pdf" {
 		t.Fatalf("Publish() = %q, %v", first.String(), err)
 	}
-	second, err := f.svc.Publish(ctx, testUser, "u2", mustPath(t, "in"), "report.pdf")
+	second, err := f.svc.Publish(ctx, testUser, "u2", Publication{Dir: mustPath(t, "in"), Name: "report.pdf"})
 	if err != nil || second.String() != "in/report (2).pdf" {
 		t.Fatalf("Publish() = %q, %v", second.String(), err)
 	}

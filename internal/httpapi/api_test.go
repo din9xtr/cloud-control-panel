@@ -288,7 +288,10 @@ func TestResumableUploadDownloadAndShare(t *testing.T) {
 		t.Fatalf("Upload-Offset = %q", head.header.Get("Upload-Offset"))
 	}
 	c.expect(patch("40000", payload[40000:]), 204)
-	c.expect(c.do("HEAD", location, nil, "Tus-Resumable", "1.0.0"), 404)
+	completed := c.expect(c.do("HEAD", location, nil, "Tus-Resumable", "1.0.0"), 200)
+	if completed.header.Get("Upload-Offset") != "100000" {
+		t.Fatalf("completed offset = %q", completed.header.Get("Upload-Offset"))
+	}
 
 	ranged := c.expect(c.do("GET", "/api/v1/files/content?path=video%2Fclip.mp4", nil, "Range", "bytes=10-19"), 206)
 	if string(ranged.body) != "0123456789" {
@@ -410,4 +413,21 @@ func TestSecurityHeadersAndCrossOrigin(t *testing.T) {
 	}
 	c.expect(c.do("GET", "/healthz", nil), 200)
 	c.expect(c.do("GET", "/api/v1/nope", nil, "X-Skip-Contract", "1"), 404)
+}
+
+func TestUploadRechecksQuotaBeforePublication(t *testing.T) {
+	c := newClient(t)
+	c.login()
+	created := c.expect(c.do("POST", "/api/v1/uploads", nil, "Tus-Resumable", "1.0.0", "Upload-Length", "8", "Upload-Metadata", tusMeta("filename", "notes.txt")), 201)
+	location := created.header.Get("Location")
+	c.expect(c.do("PUT", "/api/v1/settings", map[string]any{"quotaBytes": 4, "trashRetentionDays": 30, "defaultLinkTtlSeconds": 86400}), 200)
+	c.expect(c.do("PATCH", location, []byte("abcdefgh"), "Tus-Resumable", "1.0.0", "Upload-Offset", "0", "Content-Type", "application/offset+octet-stream"), 507)
+	c.expect(c.do("GET", "/api/v1/files/content?path=notes.txt", nil), 404)
+	c.expect(c.do("HEAD", location, nil, "Tus-Resumable", "1.0.0"), 507)
+	c.expect(c.do("PUT", "/api/v1/settings", map[string]any{"quotaBytes": 8, "trashRetentionDays": 30, "defaultLinkTtlSeconds": 86400}), 200)
+	c.expect(c.do("HEAD", location, nil, "Tus-Resumable", "1.0.0"), 200)
+	result := c.expect(c.do("GET", "/api/v1/files/content?path=notes.txt", nil), 200)
+	if string(result.body) != "abcdefgh" {
+		t.Fatalf("recovered publication: %q", result.body)
+	}
 }

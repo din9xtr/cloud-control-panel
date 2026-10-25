@@ -243,3 +243,51 @@ func TestTusHeadersFollowContractRatherThanOperationName(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestDownloadPublishesOnlyAfterCompleteTransfer(t *testing.T) {
+	started, release := make(chan struct{}), make(chan struct{})
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Length", "6")
+		_, _ = io.WriteString(w, "abc")
+		w.(http.Flusher).Flush()
+		close(started)
+		<-release
+		_, _ = io.WriteString(w, "def")
+	}))
+	defer srv.Close()
+	client, err := NewClient(srv.URL, "", time.Second*5)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := t.TempDir()
+	root, err := os.OpenRoot(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer root.Close()
+	executor := &Executor{Client: client, Root: root, Restricted: true}
+	op := findOperation(t, "downloadFile")
+	done := make(chan error, 1)
+	go func() {
+		_, err := executor.Execute(t.Context(), op, map[string]any{"path": "garden/catalog.txt", "output": "catalog.txt"})
+		done <- err
+	}()
+	<-started
+	_, statErr := root.Stat("catalog.txt")
+	close(release)
+	transferErr := <-done
+	if !errors.Is(statErr, os.ErrNotExist) {
+		t.Fatalf("partial destination visible: %v", statErr)
+	}
+	if transferErr != nil {
+		t.Fatal(transferErr)
+	}
+	data, err := os.ReadFile(filepath.Join(dir, "catalog.txt"))
+	if err != nil || string(data) != "abcdef" {
+		t.Fatalf("download = %q, %v", data, err)
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil || len(entries) != 1 {
+		t.Fatalf("temporary file leaked: %v, %v", entries, err)
+	}
+}

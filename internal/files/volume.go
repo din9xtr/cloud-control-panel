@@ -7,6 +7,7 @@ import (
 	"os"
 	"path"
 	"strconv"
+	"syscall"
 )
 
 const (
@@ -68,11 +69,12 @@ func (v *Volume) OpenStaging(userID int64, id string) (*os.File, error) {
 }
 
 func (v *Volume) RemoveStaging(userID int64, id string) error {
-	err := v.root.Remove(stagingFile(userID, id))
-	if errors.Is(err, fs.ErrNotExist) {
-		return nil
+	for _, name := range []string{stagingFile(userID, id), publicationFile(userID, id)} {
+		if err := v.root.Remove(name); err != nil && !errors.Is(err, fs.ErrNotExist) {
+			return mapFSError(err)
+		}
 	}
-	return mapFSError(err)
+	return nil
 }
 
 func (v *Volume) userFS(userID int64) (fs.FS, error) {
@@ -89,6 +91,10 @@ func userPath(userID int64, p Path) string {
 
 func stagingDir(userID int64) string {
 	return path.Join(uploadsDir, strconv.FormatInt(userID, 10))
+}
+
+func publicationFile(userID int64, id string) string {
+	return path.Join(stagingDir(userID), id+".publish")
 }
 
 func stagingFile(userID int64, id string) string {
@@ -109,6 +115,8 @@ func mapFSError(err error) error {
 		return nil
 	case errors.Is(err, fs.ErrNotExist):
 		return fmt.Errorf("%w: %w", ErrNotFound, err)
+	case errors.Is(err, syscall.ENOSPC), errors.Is(err, syscall.EDQUOT):
+		return fmt.Errorf("%w: %w", ErrDiskFull, err)
 	case errors.Is(err, fs.ErrExist):
 		return fmt.Errorf("%w: %w", ErrExists, err)
 	default:

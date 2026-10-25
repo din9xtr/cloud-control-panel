@@ -237,24 +237,6 @@ func (s *Service) Open(_ context.Context, userID int64, p Path) (*os.File, Entry
 	return f, newEntry(p, info), nil
 }
 
-func (s *Service) Publish(ctx context.Context, userID int64, stagingID string, dir Path, name string) (Path, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	if err := s.requireDir(userID, dir); err != nil {
-		return Path{}, err
-	}
-	target, err := s.uniquePath(userID, dir, name)
-	if err != nil {
-		return Path{}, err
-	}
-	if err := s.volume.root.Rename(stagingFile(userID, stagingID), userPath(userID, target)); err != nil {
-		return Path{}, mapFSError(err)
-	}
-	s.usage.invalidate(userID)
-	return target, nil
-}
-
 func (s *Service) PrepareUser(_ context.Context, userID int64) error {
 	return s.volume.EnsureUser(userID)
 }

@@ -109,13 +109,15 @@ Other management tools continue to work. When set, the directory must already
 exist. Transfer paths are relative to it and opened through Go's `os.Root`;
 absolute paths, `..` escapes and symlinks escaping that root are rejected.
 
-Downloads create new files with mode `0600`, refuse to overwrite existing files,
-and remove incomplete files after a normal transfer failure. They do not put
+Downloads stage bytes in a temporary file with mode `0600`, sync it, then publish
+the final name without overwriting existing files. Normal failures remove the
+temporary file. They do not put
 binary contents into model context. `uploadFile` reads a regular file within this
 directory and streams it in chunks of up to 4 MiB. An interrupted upload reports
 its ID; call it again with `uploadId` and the **same unchanged source** to resume.
-Size and offset are checked; source content is not hashed. A force-killed process
-can leave an incomplete local download that must be removed before retrying.
+Size and offset are checked; source content is not hashed. Completed upload receipts remain available until `Upload-Expires`, including
+after a process restart or lost final reply. A force-killed download can leave a
+`.cloud-download-*.part` temporary file; the final destination remains absent.
 
 The low-level `tusWrite` tool accepts at most 1 MiB of decoded base64 data per
 call; prefer `uploadFile` for large files. To download elsewhere, move the finished
