@@ -1,27 +1,22 @@
 services:
-  app:
-    build:
-      context: .
-      dockerfile: Dockerfile
+  cloud:
+    build: .
+    image: cloud-control-panel:latest
     container_name: cloud
     restart: unless-stopped
-    ports:
-      - "127.0.0.1:8001:80"
-    volumes:
-      - .:/var/www
-      - ./db:/var/db
-      - ./php/php.ini:/usr/local/etc/php/conf.d/uploads.ini
-      - ./Caddyfile:/etc/frankenphp/Caddyfile
-#      - caddy_data:/data
-#      - caddy_config:/config
+    user: "${CLOUD_UID:-1000}:${CLOUD_GID:-1000}"
     env_file:
-      - .env
-    tty: false
-    healthcheck:
-      test: [ "CMD", "curl", "-kf", "http://localhost/" ]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-#volumes:
-#  caddy_data:
-#  caddy_config:
+      - path: .env
+        required: false
+    ports:
+      - "${CLOUD_BIND:-127.0.0.1}:${CLOUD_PORT:-8080}:8080"
+    volumes:
+      - ./data:/data
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    stop_grace_period: 25s

@@ -1,0 +1,1439 @@
+openapi: 3.1.0
+info:
+  title: Cloud Control Panel API
+  version: 1.0.0
+  description: |
+    Self-hosted file storage with resumable uploads and temporary links.
+
+    Any operation may also answer 429 `too_many_requests` with `Retry-After` when a client
+    exceeds its rate or concurrency budget, 503 `busy` when the server sheds load, and
+    415 `unsupported_media_type` when a JSON body is sent without `Content-Type: application/json`.
+  license:
+    name: MIT
+    identifier: MIT
+servers:
+  - url: /api/v1
+security:
+  - session: []
+tags:
+  - name: auth
+  - name: account
+  - name: files
+  - name: trash
+  - name: links
+  - name: storage
+  - name: settings
+  - name: uploads
+x-client-operations:
+  - operationId: uploadFile
+    method: POST
+    x-cli-aliases: [upload]
+    description: Upload a local file with tus. Pass uploadId to resume the same unchanged file.
+    inputSchema:
+      $ref: '#/components/schemas/UploadFileArguments'
+  - operationId: uploadFolder
+    method: POST
+    description: Upload a local directory recursively, including empty folders. Existing remote directories are merged and duplicate filenames get a suffix. Partial uploads remain on failure; repeating the command can create duplicate files. Symlinks are skipped.
+    inputSchema:
+      $ref: '#/components/schemas/UploadFolderArguments'
+paths:
+  /setup:
+    get:
+      tags: [auth]
+      operationId: setupStatus
+      security: []
+      responses:
+        '200':
+          description: Whether the first account still has to be created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SetupStatus'
+    post:
+      tags: [auth]
+      operationId: setup
+      security: []
+      description: Creates the first account and signs it in. Works only while no account exists.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '201':
+          description: Account created. Sets the session cookie.
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Me'
+        '400':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+  /auth/login:
+    post:
+      tags: [auth]
+      operationId: login
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Signed in. Sets the session cookie.
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Me'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+  /auth/logout:
+    post:
+      tags: [auth]
+      operationId: logout
+      responses:
+        '204':
+          description: Signed out.
+        '401':
+          $ref: '#/components/responses/Error'
+  /auth/me:
+    get:
+      tags: [auth]
+      operationId: me
+      x-cli-aliases: [whoami]
+      responses:
+        '200':
+          description: Current user.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Me'
+        '401':
+          $ref: '#/components/responses/Error'
+  /account/credentials:
+    put:
+      tags: [account]
+      operationId: changeCredentials
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChangeCredentialsRequest'
+      responses:
+        '200':
+          description: Credentials changed. Other sessions are signed out when the password changes.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Me'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '403':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+  /account/sessions:
+    get:
+      tags: [account]
+      operationId: listSessions
+      responses:
+        '200':
+          description: Active sessions.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionList'
+        '401':
+          $ref: '#/components/responses/Error'
+  /account/sessions/{id}:
+    delete:
+      tags: [account]
+      operationId: revokeSession
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '204':
+          description: Session revoked.
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+  /files:
+    get:
+      tags: [files]
+      operationId: listFolder
+      x-cli-aliases: [ls]
+      parameters:
+        - $ref: '#/components/parameters/OptionalPath'
+      responses:
+        '200':
+          description: Folder contents, folders first.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Folder'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+  /files/search:
+    get:
+      tags: [files]
+      operationId: searchFiles
+      x-cli-aliases: [search]
+      parameters:
+        - $ref: '#/components/parameters/OptionalPath'
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 255
+      responses:
+        '200':
+          description: Matches by name, up to 200.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EntryList'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+  /files/folders:
+    post:
+      tags: [files]
+      operationId: createFolder
+      x-cli-aliases: [mkdir]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PathRequest'
+      responses:
+        '201':
+          description: Folder created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Entry'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+  /files/rename:
+    post:
+      tags: [files]
+      operationId: renameEntry
+      x-cli-aliases: [rename]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RenameRequest'
+      responses:
+        '200':
+          description: Renamed entry.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Entry'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+  /files/move:
+    post:
+      tags: [files]
+      operationId: moveEntries
+      x-cli-aliases: [mv]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MoveRequest'
+      responses:
+        '204':
+          description: Entries moved.
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+  /files/trash:
+    post:
+      tags: [files]
+      operationId: trashEntries
+      x-cli-aliases: [rm]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PathsRequest'
+      responses:
+        '204':
+          description: Entries moved to trash.
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+  /files/content:
+    get:
+      tags: [files]
+      operationId: downloadFile
+      x-cli-aliases: [download]
+      description: Streams a file. Supports HTTP range requests.
+      parameters:
+        - $ref: '#/components/parameters/RequiredPath'
+        - name: inline
+          in: query
+          schema:
+            type: boolean
+          description: Ask for inline display. Honoured only for images, audio, video, PDF and plain text.
+      responses:
+        '200':
+          $ref: '#/components/responses/Binary'
+        '206':
+          $ref: '#/components/responses/Binary'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+  /files/archive:
+    get:
+      tags: [files]
+      operationId: downloadArchive
+      description: Streams a ZIP archive with the selected files and folders.
+      parameters:
+        - name: path
+          in: query
+          required: true
+          style: form
+          explode: true
+          schema:
+            type: array
+            minItems: 1
+            maxItems: 1000
+            items:
+              type: string
+      responses:
+        '200':
+          description: ZIP archive.
+          content:
+            application/zip:
+              schema:
+                type: string
+                format: binary
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+  /trash:
+    get:
+      tags: [trash]
+      operationId: listTrash
+      responses:
+        '200':
+          description: Items in trash, newest first.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TrashList'
+        '401':
+          $ref: '#/components/responses/Error'
+    delete:
+      tags: [trash]
+      operationId: emptyTrash
+      responses:
+        '204':
+          description: Trash emptied.
+        '401':
+          $ref: '#/components/responses/Error'
+  /trash/{id}:
+    delete:
+      tags: [trash]
+      operationId: deleteTrashItem
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '204':
+          description: Item deleted permanently.
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+  /trash/{id}/restore:
+    post:
+      tags: [trash]
+      operationId: restoreTrashItem
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: Item restored. The name gets a suffix when the original place is taken.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PathResponse'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+  /links:
+    get:
+      tags: [links]
+      operationId: listLinks
+      responses:
+        '200':
+          description: Active temporary links.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LinkList'
+        '401':
+          $ref: '#/components/responses/Error'
+    post:
+      tags: [links]
+      operationId: createLink
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateLinkRequest'
+      responses:
+        '201':
+          description: Link created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Link'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+  /links/{id}:
+    delete:
+      tags: [links]
+      operationId: revokeLink
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '204':
+          description: Link revoked.
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+  /storage:
+    get:
+      tags: [storage]
+      operationId: storageUsage
+      responses:
+        '200':
+          description: Space usage and quota.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Storage'
+        '401':
+          $ref: '#/components/responses/Error'
+  /settings:
+    get:
+      tags: [settings]
+      operationId: getSettings
+      responses:
+        '200':
+          description: Application settings.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Settings'
+        '401':
+          $ref: '#/components/responses/Error'
+    put:
+      tags: [settings]
+      operationId: updateSettings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Settings'
+      responses:
+        '200':
+          description: Settings saved.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Settings'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+  /uploads:
+    options:
+      tags: [uploads]
+      operationId: tusOptions
+      security: []
+      description: tus 1.0.0 capability discovery.
+      responses:
+        '204':
+          description: Supported tus features.
+          headers:
+            Tus-Resumable:
+              $ref: '#/components/headers/TusResumable'
+            Tus-Version:
+              schema:
+                type: string
+            Tus-Extension:
+              schema:
+                type: string
+            Tus-Max-Size:
+              schema:
+                type: integer
+    post:
+      tags: [uploads]
+      operationId: tusCreate
+      description: Creates a resumable upload (tus creation extension).
+      parameters:
+        - $ref: '#/components/parameters/TusResumable'
+        - name: Upload-Length
+          in: header
+          required: true
+          schema:
+            type: integer
+            minimum: 0
+        - name: Upload-Metadata
+          in: header
+          required: true
+          description: 'tus metadata: filename (required), folder (optional, defaults to root).'
+          schema:
+            type: string
+      responses:
+        '201':
+          description: Upload created.
+          headers:
+            Location:
+              schema:
+                type: string
+            Tus-Resumable:
+              $ref: '#/components/headers/TusResumable'
+            Upload-Expires:
+              schema:
+                type: string
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '412':
+          $ref: '#/components/responses/Error'
+        '413':
+          $ref: '#/components/responses/Error'
+        '507':
+          $ref: '#/components/responses/Error'
+  /uploads/{id}:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    head:
+      tags: [uploads]
+      operationId: tusStatus
+      parameters:
+        - $ref: '#/components/parameters/TusResumable'
+      responses:
+        '200':
+          description: Current offset.
+          headers:
+            Upload-Offset:
+              $ref: '#/components/headers/UploadOffset'
+            Upload-Length:
+              schema:
+                type: integer
+            Tus-Resumable:
+              $ref: '#/components/headers/TusResumable'
+        '401':
+          description: Unauthenticated.
+        '404':
+          description: Unknown upload.
+    patch:
+      tags: [uploads]
+      operationId: tusWrite
+      parameters:
+        - $ref: '#/components/parameters/TusResumable'
+        - name: Upload-Offset
+          in: header
+          required: true
+          schema:
+            type: integer
+            minimum: 0
+      requestBody:
+        required: true
+        content:
+          application/offset+octet-stream:
+            schema:
+              type: string
+              format: binary
+      responses:
+        '204':
+          description: Chunk stored.
+          headers:
+            Upload-Offset:
+              $ref: '#/components/headers/UploadOffset'
+            Tus-Resumable:
+              $ref: '#/components/headers/TusResumable'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '413':
+          $ref: '#/components/responses/Error'
+        '415':
+          $ref: '#/components/responses/Error'
+        '423':
+          $ref: '#/components/responses/Error'
+    delete:
+      tags: [uploads]
+      operationId: tusTerminate
+      parameters:
+        - $ref: '#/components/parameters/TusResumable'
+      responses:
+        '204':
+          description: Upload discarded.
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '423':
+          $ref: '#/components/responses/Error'
+  /public/links/{token}:
+    parameters:
+      - $ref: '#/components/parameters/Token'
+    get:
+      tags: [links]
+      operationId: publicFolder
+      security: []
+      description: Public folder information. Upload links never return folder contents.
+      parameters:
+        - $ref: '#/components/parameters/OptionalPath'
+      responses:
+        default:
+          $ref: '#/components/responses/Error'
+        '200':
+          description: Public link information.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicLink'
+  /public/links/{token}/content:
+    parameters:
+      - $ref: '#/components/parameters/Token'
+    get:
+      tags: [links]
+      operationId: publicFolderContent
+      security: []
+      description: Download a file within a shared folder.
+      parameters:
+        - $ref: '#/components/parameters/OptionalPath'
+      responses:
+        default:
+          $ref: '#/components/responses/Error'
+        '200':
+          $ref: '#/components/responses/Binary'
+        '206':
+          $ref: '#/components/responses/Binary'
+        '304':
+          description: Not modified.
+        '416':
+          description: Invalid range.
+  /public/links/{token}/archive:
+    parameters:
+      - $ref: '#/components/parameters/Token'
+    get:
+      tags: [links]
+      operationId: publicFolderArchive
+      security: []
+      description: Download the shared folder or selected relative paths as ZIP.
+      parameters:
+        - name: path
+          in: query
+          schema:
+            type: array
+            maxItems: 1000
+            items:
+              type: string
+              maxLength: 4096
+          description: Paths relative to the shared folder. Omit to download everything.
+      responses:
+        default:
+          $ref: '#/components/responses/Error'
+        '200':
+          $ref: '#/components/responses/Binary'
+        '206':
+          $ref: '#/components/responses/Binary'
+        '304':
+          description: Not modified.
+        '416':
+          description: Invalid range.
+  /public/links/{token}/uploads:
+    parameters:
+      - $ref: '#/components/parameters/Token'
+    options:
+      tags: [uploads]
+      security: []
+      operationId: publicTusOptions
+      description: tus 1.0.0 capability discovery.
+      responses:
+        default:
+          $ref: '#/components/responses/Error'
+        '204':
+          description: Supported tus features.
+          headers:
+            Tus-Resumable:
+              $ref: '#/components/headers/TusResumable'
+            Tus-Version:
+              schema:
+                type: string
+            Tus-Extension:
+              schema:
+                type: string
+            Tus-Max-Size:
+              schema:
+                type: integer
+    post:
+      tags: [uploads]
+      security: []
+      operationId: publicTusCreate
+      description: Creates a resumable upload (tus creation extension).
+      parameters:
+        - $ref: '#/components/parameters/TusResumable'
+        - name: Upload-Length
+          in: header
+          required: true
+          schema:
+            type: integer
+            minimum: 0
+        - name: Upload-Metadata
+          in: header
+          required: true
+          description: 'tus metadata: filename (required), folder (optional, defaults to root).'
+          schema:
+            type: string
+      responses:
+        default:
+          $ref: '#/components/responses/Error'
+        '201':
+          description: Upload created.
+          headers:
+            Location:
+              schema:
+                type: string
+            Tus-Resumable:
+              $ref: '#/components/headers/TusResumable'
+            Upload-Expires:
+              schema:
+                type: string
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '412':
+          $ref: '#/components/responses/Error'
+        '413':
+          $ref: '#/components/responses/Error'
+        '507':
+          $ref: '#/components/responses/Error'
+  /public/links/{token}/uploads/{id}:
+    parameters:
+      - $ref: '#/components/parameters/Token'
+      - $ref: '#/components/parameters/Id'
+    head:
+      tags: [uploads]
+      security: []
+      operationId: publicTusStatus
+      parameters:
+        - $ref: '#/components/parameters/TusResumable'
+      responses:
+        default:
+          $ref: '#/components/responses/Error'
+        '200':
+          description: Current offset.
+          headers:
+            Upload-Offset:
+              $ref: '#/components/headers/UploadOffset'
+            Upload-Length:
+              schema:
+                type: integer
+            Tus-Resumable:
+              $ref: '#/components/headers/TusResumable'
+        '401':
+          description: Unauthenticated.
+        '404':
+          description: Unknown upload.
+    patch:
+      tags: [uploads]
+      security: []
+      operationId: publicTusWrite
+      parameters:
+        - $ref: '#/components/parameters/TusResumable'
+        - name: Upload-Offset
+          in: header
+          required: true
+          schema:
+            type: integer
+            minimum: 0
+      requestBody:
+        required: true
+        content:
+          application/offset+octet-stream:
+            schema:
+              type: string
+              format: binary
+      responses:
+        default:
+          $ref: '#/components/responses/Error'
+        '204':
+          description: Chunk stored.
+          headers:
+            Upload-Offset:
+              $ref: '#/components/headers/UploadOffset'
+            Tus-Resumable:
+              $ref: '#/components/headers/TusResumable'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '413':
+          $ref: '#/components/responses/Error'
+        '415':
+          $ref: '#/components/responses/Error'
+        '423':
+          $ref: '#/components/responses/Error'
+    delete:
+      tags: [uploads]
+      security: []
+      operationId: publicTusTerminate
+      parameters:
+        - $ref: '#/components/parameters/TusResumable'
+      responses:
+        default:
+          $ref: '#/components/responses/Error'
+        '204':
+          description: Upload discarded.
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '423':
+          $ref: '#/components/responses/Error'
+components:
+  securitySchemes:
+    session:
+      type: apiKey
+      in: cookie
+      name: cloud_session
+  parameters:
+    Token:
+      name: token
+      in: path
+      required: true
+      schema:
+        type: string
+        pattern: '^[A-Za-z0-9_-]{22}$'
+    Id:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        pattern: '^[A-Za-z0-9_-]{1,128}$'
+    OptionalPath:
+      name: path
+      in: query
+      schema:
+        type: string
+        maxLength: 4096
+      description: Slash separated path relative to the storage root. Empty means root.
+    RequiredPath:
+      name: path
+      in: query
+      required: true
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 4096
+    TusResumable:
+      name: Tus-Resumable
+      in: header
+      required: true
+      schema:
+        type: string
+        const: 1.0.0
+  headers:
+    TusResumable:
+      schema:
+        type: string
+        const: 1.0.0
+    UploadOffset:
+      schema:
+        type: integer
+        minimum: 0
+  responses:
+    Error:
+      description: Error.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    TooManyRequests:
+      description: Too many attempts.
+      headers:
+        Retry-After:
+          schema:
+            type: integer
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Binary:
+      description: File content.
+      headers:
+        Content-Disposition:
+          schema:
+            type: string
+        Accept-Ranges:
+          schema:
+            type: string
+      content:
+        '*/*':
+          schema:
+            type: string
+            format: binary
+  schemas:
+    UploadFileArguments:
+      type: object
+      additionalProperties: false
+      required: [input]
+      properties:
+        input:
+          type: string
+          minLength: 1
+          description: Local source file; relative to transfer-dir in MCP.
+        folder:
+          type: string
+          description: Remote folder; empty means root.
+        name:
+          type: string
+          description: Remote filename; defaults to the local basename.
+        token:
+          $ref: '#/components/schemas/UploadLinkToken'
+        uploadId:
+          type: string
+          pattern: '^[A-Za-z0-9_-]{1,128}$'
+          description: Existing upload ID returned by an interrupted upload.
+    UploadLinkToken:
+      type: string
+      pattern: '^[A-Za-z0-9_-]{22}$'
+      description: Upload-only folder link token. No login required; omit folder when using it.
+    UploadFolderArguments:
+      type: object
+      additionalProperties: false
+      required: [input]
+      properties:
+        input:
+          type: string
+          minLength: 1
+          description: Local directory; relative to transfer-dir in MCP.
+        folder:
+          type: string
+          description: Existing remote parent folder; empty means root.
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+          pattern: '^[^/\\]+$'
+          description: Remote top-level folder name; defaults to the local basename.
+    PublicLink:
+      type: object
+      additionalProperties: false
+      required: [name, mode, expiresAt, maxUploadBytes]
+      properties:
+        name:
+          type: string
+        mode:
+          $ref: '#/components/schemas/LinkMode'
+        expiresAt:
+          type: string
+          format: date-time
+        maxUploadBytes:
+          type: integer
+          format: int64
+        folder:
+          $ref: '#/components/schemas/Folder'
+    Error:
+      type: object
+      additionalProperties: false
+      required: [error]
+      properties:
+        error:
+          type: object
+          additionalProperties: false
+          required: [code, message]
+          properties:
+            code:
+              type: string
+              enum:
+                - invalid_request
+                - unauthenticated
+                - invalid_credentials
+                - forbidden
+                - not_found
+                - conflict
+                - quota_exceeded
+                - disk_full
+                - too_large
+                - too_many_requests
+                - locked
+                - unsupported_media_type
+                - precondition_failed
+                - busy
+                - internal
+            message:
+              type: string
+    SetupStatus:
+      type: object
+      additionalProperties: false
+      required: [required]
+      properties:
+        required:
+          type: boolean
+    LoginRequest:
+      type: object
+      additionalProperties: false
+      required: [username, password]
+      properties:
+        username:
+          type: string
+          minLength: 1
+          maxLength: 64
+        password:
+          type: string
+          minLength: 1
+          maxLength: 128
+    ChangeCredentialsRequest:
+      type: object
+      additionalProperties: false
+      required: [currentPassword]
+      properties:
+        currentPassword:
+          type: string
+          minLength: 1
+          maxLength: 128
+        username:
+          type: string
+          maxLength: 32
+        newPassword:
+          type: string
+          maxLength: 72
+    Me:
+      type: object
+      additionalProperties: false
+      required: [user]
+      properties:
+        user:
+          $ref: '#/components/schemas/User'
+    User:
+      type: object
+      additionalProperties: false
+      required: [id, username, passwordChangedAt]
+      properties:
+        id:
+          type: integer
+          format: int64
+        username:
+          type: string
+        passwordChangedAt:
+          type: string
+          format: date-time
+    Session:
+      type: object
+      additionalProperties: false
+      required: [id, current, createdAt, lastSeenAt, ip, userAgent]
+      properties:
+        id:
+          type: string
+        current:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        lastSeenAt:
+          type: string
+          format: date-time
+        ip:
+          type: string
+        userAgent:
+          type: string
+    SessionList:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Session'
+    Kind:
+      type: string
+      enum: [file, dir]
+    Entry:
+      type: object
+      additionalProperties: false
+      required: [name, path, kind, size, modifiedAt]
+      properties:
+        name:
+          type: string
+        path:
+          type: string
+        kind:
+          $ref: '#/components/schemas/Kind'
+        size:
+          type: integer
+          format: int64
+        modifiedAt:
+          type: string
+          format: date-time
+        contentType:
+          type: string
+        link:
+          $ref: '#/components/schemas/EntryLink'
+    EntryLink:
+      type: object
+      additionalProperties: false
+      required: [id, expiresAt]
+      properties:
+        id:
+          type: string
+        expiresAt:
+          type: string
+          format: date-time
+    Folder:
+      type: object
+      additionalProperties: false
+      required: [path, entries]
+      properties:
+        path:
+          type: string
+        entries:
+          type: array
+          items:
+            $ref: '#/components/schemas/Entry'
+    EntryList:
+      type: object
+      additionalProperties: false
+      required: [entries]
+      properties:
+        entries:
+          type: array
+          items:
+            $ref: '#/components/schemas/Entry'
+    PathRequest:
+      type: object
+      additionalProperties: false
+      required: [path]
+      properties:
+        path:
+          type: string
+          minLength: 1
+          maxLength: 4096
+    PathResponse:
+      type: object
+      additionalProperties: false
+      required: [path]
+      properties:
+        path:
+          type: string
+    PathsRequest:
+      type: object
+      additionalProperties: false
+      required: [paths]
+      properties:
+        paths:
+          type: array
+          minItems: 1
+          maxItems: 1000
+          items:
+            type: string
+            minLength: 1
+            maxLength: 4096
+    RenameRequest:
+      type: object
+      additionalProperties: false
+      required: [path, name]
+      properties:
+        path:
+          type: string
+          minLength: 1
+          maxLength: 4096
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+    MoveRequest:
+      type: object
+      additionalProperties: false
+      required: [paths, destination]
+      properties:
+        paths:
+          type: array
+          minItems: 1
+          maxItems: 1000
+          items:
+            type: string
+            minLength: 1
+            maxLength: 4096
+        destination:
+          type: string
+          maxLength: 4096
+    TrashItem:
+      type: object
+      additionalProperties: false
+      required: [id, name, originalPath, kind, size, trashedAt, purgeAt]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        originalPath:
+          type: string
+        kind:
+          $ref: '#/components/schemas/Kind'
+        size:
+          type: integer
+          format: int64
+        trashedAt:
+          type: string
+          format: date-time
+        purgeAt:
+          type: string
+          format: date-time
+    TrashList:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/TrashItem'
+    LinkMode:
+      type: string
+      enum: [download, upload]
+    CreateLinkRequest:
+      type: object
+      additionalProperties: false
+      required: [path]
+      properties:
+        mode:
+          $ref: '#/components/schemas/LinkMode'
+        path:
+          type: string
+          minLength: 1
+          maxLength: 4096
+        ttlSeconds:
+          type: integer
+          minimum: 300
+          maximum: 2592000
+          description: Omit to use the default lifetime from settings.
+    Link:
+      type: object
+      additionalProperties: false
+      required: [id, path, name, url, createdAt, expiresAt, downloads, mode, kind]
+      properties:
+        mode:
+          $ref: '#/components/schemas/LinkMode'
+        kind:
+          type: string
+          enum: [file, dir]
+        id:
+          type: string
+        path:
+          type: string
+        name:
+          type: string
+        url:
+          type: string
+          description: Public path, relative to the site origin.
+        createdAt:
+          type: string
+          format: date-time
+        expiresAt:
+          type: string
+          format: date-time
+        downloads:
+          type: integer
+          format: int64
+    LinkList:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Link'
+    Storage:
+      type: object
+      additionalProperties: false
+      required: [quotaBytes, usedBytes, filesBytes, trashBytes, reservedBytes, availableBytes, fileCount, disk, byFolder, byCategory, largest]
+      properties:
+        quotaBytes:
+          type: integer
+          format: int64
+          description: Zero means no quota; the disk is the only limit.
+        usedBytes:
+          type: integer
+          format: int64
+        filesBytes:
+          type: integer
+          format: int64
+        trashBytes:
+          type: integer
+          format: int64
+        reservedBytes:
+          type: integer
+          format: int64
+          description: Space claimed by unfinished uploads.
+        availableBytes:
+          type: integer
+          format: int64
+        fileCount:
+          type: integer
+        disk:
+          type: object
+          additionalProperties: false
+          required: [totalBytes, freeBytes]
+          properties:
+            totalBytes:
+              type: integer
+              format: int64
+            freeBytes:
+              type: integer
+              format: int64
+        byFolder:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [name, bytes]
+            properties:
+              name:
+                type: string
+                description: Top-level folder. Empty string groups files stored in the root.
+              bytes:
+                type: integer
+                format: int64
+        byCategory:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [category, bytes]
+            properties:
+              category:
+                type: string
+                enum: [video, image, audio, document, archive, other]
+              bytes:
+                type: integer
+                format: int64
+        largest:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [name, path, size]
+            properties:
+              name:
+                type: string
+              path:
+                type: string
+              size:
+                type: integer
+                format: int64
+    Settings:
+      type: object
+      additionalProperties: false
+      required: [quotaBytes, trashRetentionDays, defaultLinkTtlSeconds]
+      properties:
+        quotaBytes:
+          type: integer
+          format: int64
+          minimum: 0
+        trashRetentionDays:
+          type: integer
+          minimum: 1
+          maximum: 365
+        defaultLinkTtlSeconds:
+          type: integer
+          minimum: 3600
+          maximum: 2592000

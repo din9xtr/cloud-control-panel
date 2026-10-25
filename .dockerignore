@@ -1,0 +1,11 @@
+.git
+.idea
+.vscode
+data
+bin
+docs
+.env
+.env.*
+web/node_modules
+web/coverage
+internal/web/dist
