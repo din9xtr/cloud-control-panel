@@ -34,7 +34,7 @@ container, SQLite and your own disk.
     <td width="50%"><img src="docs/screenshots/storage.png" alt="Storage overview" /></td>
   </tr>
   <tr>
-    <td><img src="docs/screenshots/settings.png" alt="Settings" /></td>
+    <td><img src="docs/screenshots/settings-v0.2.jpg" alt="Settings in Cloud v0.2.0" /></td>
     <td><img src="docs/screenshots/setup.png" alt="First start" /></td>
   </tr>
 </table>
