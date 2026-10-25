@@ -33,8 +33,8 @@ export function PublicSharePage({ token }: { token: string }) {
   const navigate = (next: string) => { setSelected(new Set()); setPath(next); };
   return (
     <div className="flex min-h-dvh flex-col">
-      <header className="glass sticky top-0 z-30 h-14 border-b border-line max-md:h-[52px]">
-        <div className="mx-auto flex h-full max-w-[1120px] items-center px-6 text-fg max-md:px-4">
+      <header className="glass sticky top-0 z-30 border-b border-line pt-[env(safe-area-inset-top)] [&>div]:h-14 max-md:[&>div]:h-[52px]">
+        <div className="mx-auto flex max-w-[1120px] items-center px-6 text-fg max-md:px-4">
           <Wordmark />
         </div>
       </header>

@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link, Outlet, useNavigate } from "@tanstack/react-router";
 import { LogOut } from "lucide-react";
 import { useEffect, useEffectEvent, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { meQuery, storageQuery, useLogout } from "@/api/queries";
 import { UploadTray } from "@/features/uploads/UploadTray";
 import { cn } from "@/lib/cn";
@@ -75,8 +76,8 @@ function TopBar() {
   useScrollLock(menu);
 
   return (
-    <header className="glass sticky top-0 z-40 border-b border-line">
-      <nav aria-label="Primary" className="mx-auto flex h-14 max-w-[1120px] items-center gap-8 px-6 max-md:h-[52px] max-md:px-4">
+    <header className="glass sticky top-0 z-40 border-b border-line pt-[env(safe-area-inset-top)]">
+      <nav aria-label="Primary" className="mx-auto flex h-14 max-w-[1120px] items-center gap-8 px-6 max-md:h-[52px] max-md:pr-[max(16px,env(safe-area-inset-right))] max-md:pl-[max(16px,env(safe-area-inset-left))]">
         <Link to="/files" aria-label="Home" className="shrink-0 text-fg no-underline">
           <Wordmark />
         </Link>
@@ -213,7 +214,7 @@ function MobileMenu({ open, onClose }: { open: boolean; onClose: () => void }) {
   const signOut = useSignOut();
   const item = cn("transition-[opacity,transform] duration-280 ease-glide", open ? "translate-x-0 opacity-100" : "-translate-x-2.5 opacity-0 !delay-0");
   const delay = (index: number) => stagger(index, 140);
-  return (
+  return createPortal(
     <div
       id="global-menu"
       role="dialog"
@@ -226,7 +227,7 @@ function MobileMenu({ open, onClose }: { open: boolean; onClose: () => void }) {
         open ? "visible [clip-path:inset(0_0_0_0)]" : "invisible [clip-path:inset(0_0_100%_0)]",
       )}
     >
-      <div className="flex h-[52px] shrink-0 items-center justify-between border-b border-line px-4">
+      <div className="flex shrink-0 items-center justify-between border-b border-line pt-[env(safe-area-inset-top)] pr-[max(16px,env(safe-area-inset-right))] pl-[max(16px,env(safe-area-inset-left))] [&>*]:h-[52px]">
         <Link to="/files" aria-label="Home" onClick={onClose} className="text-fg no-underline">
           <Wordmark />
         </Link>
@@ -259,7 +260,8 @@ function MobileMenu({ open, onClose }: { open: boolean; onClose: () => void }) {
           Sign out
         </button>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

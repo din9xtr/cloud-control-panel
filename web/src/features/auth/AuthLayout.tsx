@@ -4,7 +4,7 @@ import { Wordmark } from "@/layout/Wordmark";
 export function AuthLayout({ title, prompt, intro, children, footnote }: { title: string; prompt?: string; intro?: ReactNode; children: ReactNode; footnote?: ReactNode }) {
   return (
     <div className="flex min-h-dvh flex-col">
-      <main className="flex flex-1 flex-col items-center justify-center gap-10 px-4 py-16">
+      <main className="flex flex-1 flex-col items-center justify-center gap-10 px-4 pt-[max(64px,env(safe-area-inset-top))] pb-[max(64px,env(safe-area-inset-bottom))]">
         <div className="flex animate-reveal flex-col items-center gap-3 text-center">
           {prompt && <samp className="font-mono text-[13px] text-fg-subtle">{prompt}</samp>}
           <Wordmark size="lg" blink className="mb-3" />

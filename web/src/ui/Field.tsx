@@ -24,7 +24,7 @@ export function Field({ label, hint, error, mono, className, id, ...rest }: Fiel
           placeholder=" "
           aria-invalid={error ? true : undefined}
           aria-describedby={describedBy}
-          className={cn(control, "peer type-body h-[52px] px-3.5 pt-5 pb-1", mono && "font-mono text-[15px]")}
+          className={cn(control, "peer type-body h-[52px] px-3.5 pt-5 pb-1", mono && "font-mono")}
           {...rest}
         />
         <label

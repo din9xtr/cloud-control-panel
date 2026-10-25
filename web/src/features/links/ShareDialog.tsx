@@ -140,7 +140,7 @@ function CreatedLink({ link }: { link: Link }) {
           readOnly
           value={url}
           onFocus={(e) => e.currentTarget.select()}
-          className={cn(control, "h-10 min-w-0 flex-1 px-3.5 font-mono text-[13px]")}
+          className={cn(control, "h-10 min-w-0 flex-1 px-3.5 font-mono text-[13px] max-sm:h-11 max-sm:text-[16px]")}
         />
         <Button variant="primary" onClick={copy} icon={copied ? <Check size={15} aria-hidden /> : <Copy size={15} aria-hidden />} className="h-10">
           {copied ? "Copied" : "Copy"}
