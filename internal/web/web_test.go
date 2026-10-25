@@ -12,6 +12,7 @@ func newTestHandler() *Handler {
 		"index.html":           {Data: []byte("<!doctype html><title>app</title>")},
 		"manifest.webmanifest": {Data: []byte("{}")},
 		"assets/app-1a2b.js":   {Data: []byte("console.log(1)")},
+		"assets/app-1a2b.css":  {Data: []byte("body{margin:0}")},
 	}
 	return &Handler{assets: assets, index: assets["index.html"].Data, files: http.FileServerFS(assets)}
 }
@@ -23,6 +24,7 @@ func TestServesStaticFilesWithTypesAndCaching(t *testing.T) {
 	}{
 		{path: "/manifest.webmanifest", contentType: "application/manifest+json", cache: "no-cache"},
 		{path: "/assets/app-1a2b.js", contentType: "text/javascript; charset=utf-8", cache: "public, max-age=31536000, immutable"},
+		{path: "/assets/app-1a2b.css", contentType: "text/css; charset=utf-8", cache: "public, max-age=31536000, immutable"},
 		{path: "/files/garden/greenhouse", contentType: "text/html; charset=utf-8", cache: "no-cache"},
 	}
 	for _, tt := range tests {

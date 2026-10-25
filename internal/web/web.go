@@ -14,6 +14,8 @@ import (
 var dist embed.FS
 
 var _contentTypes = map[string]string{
+	".js":          "text/javascript; charset=utf-8",
+	".css":         "text/css; charset=utf-8",
 	".webmanifest": "application/manifest+json",
 	".ico":         "image/x-icon",
 	".svg":         "image/svg+xml",

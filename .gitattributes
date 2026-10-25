@@ -1,2 +1,4 @@
 # Vendored / third-party libraries
 public/js/tus.js linguist-vendored
+
+*.md text eol=lf

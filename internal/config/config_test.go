@@ -2,6 +2,7 @@ package config
 
 import (
 	"log/slog"
+	"path/filepath"
 	"testing"
 
 	"github.com/din9xtr/cloud-control-panel/internal/httpapi"
@@ -16,7 +17,7 @@ func TestLoadDefaults(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.Addr != ":8080" || cfg.DBPath != "data/cloud.db" || cfg.StorageDir != "data/storage" {
+	if cfg.Addr != ":8080" || cfg.DBPath != filepath.Join("data", "cloud.db") || cfg.StorageDir != filepath.Join("data", "storage") {
 		t.Fatalf("defaults = %+v", cfg)
 	}
 	if cfg.SecureCookies != httpapi.CookiesAuto || cfg.LogLevel != slog.LevelInfo {

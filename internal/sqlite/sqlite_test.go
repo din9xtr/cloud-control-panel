@@ -63,8 +63,12 @@ func TestMigratesLegacyDatabaseKeepingAdmin(t *testing.T) {
 	if err := db.QueryRow(`SELECT COUNT(*) FROM sessions`).Scan(&legacySessions); err != nil || legacySessions != 1 {
 		t.Fatalf("legacy table touched: %d, %v", legacySessions, err)
 	}
-	if _, err := Open(ctx, filepath.Join(t.TempDir(), "again.sqlite")); err != nil {
+	fresh, err := Open(ctx, filepath.Join(t.TempDir(), "again.sqlite"))
+	if err != nil {
 		t.Fatalf("fresh database: %v", err)
+	}
+	if err := fresh.Close(); err != nil {
+		t.Fatal(err)
 	}
 }
 
